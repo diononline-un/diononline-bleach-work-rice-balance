@@ -1,6 +1,6 @@
 # Bleach Work/Private Rice Balance: Core Design
 
-Status: proposed for review  
+Status: approved  
 Date: 2026-11-15  
 Scope: package 1 of 3, the core installer and runtime  
 Target repository: `diononline-bleach-work-rice-balance`
