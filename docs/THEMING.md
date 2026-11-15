@@ -40,6 +40,10 @@ fails with a clear "no wallpapers" error rather than silently doing nothing.
 | `rice theme random` | Apply a random file from the directory. |
 | `rice theme boot` | Wait for Noctalia, then apply the next file. |
 | `rice theme hourly` | Apply the next file unless a pause guard is active. |
+| `rice theme set <path>` | Apply one image resolved inside `wallpaper_dir`; paths outside it are rejected. |
+| `rice theme refresh` | Rebuild `index.tsv` and 480x270 JPEG thumbnails for the picker. |
+| `rice theme panel` | Toggle the `rice/themes:panel` Noctalia panel. |
+| `rice theme status` | Print the recorded wallpaper path, or nothing when unset. |
 
 Each command calls Noctalia once per configured output:
 
@@ -50,6 +54,18 @@ noctalia msg wallpaper-set <connector> <absolute-file-path>
 The selected path is written to `$XDG_STATE_HOME/rice/theme-current` using an
 atomic replace. The next and previous commands read that marker so a manual
 change is respected and the same image is not selected twice in a row.
+
+## Theme Panel
+
+`rice theme panel` toggles `rice/themes:panel`, the picker shipped in
+`plugins/themes/`. The plugin lists images from
+`$XDG_CACHE_HOME/rice-theme/index.tsv` and shows 480x270 JPEG thumbnails from
+the same cache. `rice theme refresh` rebuilds the index from the configured
+wallpaper directory with `magick`; the panel calls it when it opens.
+
+The panel applies a selection through `rice theme set`, so it shares the marker
+and output handling described above. The plugin uses `HOME` and the XDG
+variables from Noctalia and contains no machine-specific paths.
 
 ## Boot Behavior
 
@@ -122,5 +138,4 @@ The intended workflow is:
 - `rice apply` does not enable the theme units, as described above.
 - The generated Noctalia include covers widget anchors, not theme colors or
   bar styling.
-- The future shell port may add a theme panel; the current controls are the CLI
-  commands listed on this page.
+- The theme panel plugin requires ImageMagick (`magick`) to render thumbnails.

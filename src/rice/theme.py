@@ -7,17 +7,23 @@ so the same image is not selected twice in a row.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import re
+import shutil
 import subprocess
 import tempfile
 import time
 from pathlib import Path
 
-from .paths import state_home
+from .paths import cache_home, state_home
 
 SUPPORTED = {".png", ".jpg", ".jpeg", ".webp"}
 MARKER = "rice/theme-current"
 NOCTALIA = "noctalia"
+PANEL = "rice/themes:panel"
+THUMBNAIL_SIZE = "480x270"
+THUMBNAIL_COMMAND = "magick"
 
 
 def list_wallpapers(directory: Path) -> list[Path]:
@@ -49,7 +55,20 @@ def marker_path() -> Path:
     return state_home() / MARKER
 
 
-def _current() -> Path | None:
+def cache_dir() -> Path:
+    return cache_home() / "rice-theme"
+
+
+def index_path() -> Path:
+    return cache_dir() / "index.tsv"
+
+
+def thumbnails_dir() -> Path:
+    return cache_dir() / "thumbs"
+
+
+def current_theme() -> Path | None:
+    """Return the last applied wallpaper path, if one is recorded."""
     try:
         text = marker_path().read_text(encoding="utf-8").strip()
     except OSError:
@@ -107,6 +126,121 @@ def _apply(runtime: dict, path: Path, runner=None) -> Path:
     return path
 
 
+def set_theme(runtime: dict, value: str | Path, runner=None) -> Path:
+    """Apply one wallpaper named relative to ``theme.wallpaper_dir``."""
+    directory = _wallpaper_dir(runtime)
+    candidate = Path(os.path.expandvars(str(value))).expanduser()
+    if not candidate.is_absolute():
+        candidate = directory / candidate
+    candidate = candidate.resolve()
+    if not candidate.is_relative_to(directory):
+        raise ValueError(f"theme path is outside {directory}: {value}")
+    return _apply(runtime, candidate, runner)
+
+
+def _thumbnail_name(source: Path) -> str:
+    digest = hashlib.sha1(str(source).encode("utf-8")).hexdigest()[:10]
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", source.stem) or "theme"
+    return f"{stem}-{digest}.jpg"
+
+
+def make_thumbnail(source: Path, target: Path) -> None:
+    """Render a 480x270 JPEG thumbnail with ImageMagick."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            THUMBNAIL_COMMAND,
+            str(source),
+            "-auto-orient",
+            "-resize",
+            f"{THUMBNAIL_SIZE}^",
+            "-gravity",
+            "center",
+            "-extent",
+            THUMBNAIL_SIZE,
+            "-strip",
+            "-quality",
+            "82",
+            str(target),
+        ],
+        check=True,
+    )
+
+
+def refresh_cache(runtime: dict, which=None, thumbnail=None) -> list[dict]:
+    """Build the panel cache index and JPEG thumbnails atomically."""
+    directory = _wallpaper_dir(runtime)
+    files = list_wallpapers(directory)
+    which = which or shutil.which
+    if not which(THUMBNAIL_COMMAND):
+        raise RuntimeError(
+            f"{THUMBNAIL_COMMAND} (ImageMagick) is required for theme thumbnails"
+        )
+    render = thumbnail or make_thumbnail
+    thumbs = thumbnails_dir()
+    thumbs.mkdir(parents=True, exist_ok=True)
+    index = index_path()
+    index.parent.mkdir(parents=True, exist_ok=True)
+
+    entries = []
+    fd, temp_name = tempfile.mkstemp(prefix=".index-", dir=index.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            for source in files:
+                target = thumbs / _thumbnail_name(source)
+                stale = (
+                    not target.is_file()
+                    or source.stat().st_mtime > target.stat().st_mtime
+                )
+                if stale:
+                    render(source, target)
+                if not target.is_file():
+                    continue
+                stream.write(f"{source}\t{target}\t{source.stem}\n")
+                entries.append(
+                    {
+                        "source": str(source),
+                        "thumbnail": str(target),
+                        "name": source.stem,
+                    }
+                )
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_name, index)
+    finally:
+        if os.path.exists(temp_name):
+            os.unlink(temp_name)
+    return entries
+
+
+def panel_active(runner=None) -> bool:
+    """Return True when Noctalia reports the theme panel as open."""
+    run = runner or subprocess.run
+    try:
+        result = run(
+            [NOCTALIA, "msg", "status"], capture_output=True, text=True, check=False
+        )
+    except OSError:
+        return False
+    text = getattr(result, "stdout", "") or ""
+    return f'"activePanelId": "{PANEL}"' in text
+
+
+def toggle_panel(runner=None) -> bool:
+    """Close the theme panel when open, otherwise open it. Returns opened state."""
+    run = runner or subprocess.run
+    if panel_active(run):
+        run([NOCTALIA, "msg", "panel-close"], check=True)
+        return False
+    try:
+        run([NOCTALIA, "msg", "panel-close"], check=False)
+    except OSError:
+        # A missing panel or IPC socket is fine before opening.
+        pass
+    run([NOCTALIA, "msg", "panel-open", PANEL], check=True)
+    return True
+
+
 def _rotation_files(runtime: dict) -> list[Path]:
     _outputs(runtime)
     directory = _wallpaper_dir(runtime)
@@ -118,7 +252,7 @@ def _rotation_files(runtime: dict) -> list[Path]:
 
 def _rotate(runtime: dict, step: int, runner=None) -> Path:
     files = _rotation_files(runtime)
-    current = _current()
+    current = current_theme()
     if current in files:
         index = files.index(current) + step
     else:

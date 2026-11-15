@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -5,9 +6,14 @@ import pytest
 from rice.theme import (
     boot_theme,
     hourly_theme,
+    index_path,
     list_wallpapers,
     next_theme,
+    panel_active,
     previous_theme,
+    refresh_cache,
+    set_theme,
+    toggle_panel,
     wallpaper_status,
 )
 
@@ -62,6 +68,12 @@ def test_wallpaper_status_counts_missing(tmp_path: Path):
     assert status["count"] == 0
     assert status["directory"] == str(tmp_path)
     assert status["files"] == []
+
+
+def test_wallpaper_status_uses_cache_index(tmp_path):
+    (tmp_path / "one.png").write_bytes(b"x")
+    status = wallpaper_status(tmp_path)
+    assert status["count"] == 1
 
 
 def test_wallpaper_status_lists_files(tmp_path: Path):
@@ -221,3 +233,110 @@ def test_boot_theme_fails_fast_without_outputs(tmp_path, monkeypatch):
             sleep=lambda seconds: None,
         )
     assert ready_calls == []
+
+
+def _cache(tmp_path, monkeypatch):
+    cache = tmp_path / "cache"
+    monkeypatch.setenv("XDG_CACHE_HOME", str(cache))
+    return cache
+
+
+def test_refresh_cache_writes_tab_separated_index(tmp_path, monkeypatch):
+    runtime = _runtime(tmp_path, monkeypatch, ["b.png", "a.jpg"])
+    cache = _cache(tmp_path, monkeypatch)
+    drawn = []
+
+    def thumbnail(source, target):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"jpeg")
+        drawn.append((Path(source).name, Path(target).name))
+
+    entries = refresh_cache(
+        runtime, which=lambda name: "/usr/bin/magick", thumbnail=thumbnail
+    )
+
+    lines = index_path().read_text(encoding="utf-8").splitlines()
+    assert [entry["name"] for entry in entries] == ["a", "b"]
+    assert len(lines) == 2
+    for line, name in zip(lines, ("a", "b")):
+        source, thumb, label = line.split("\t")
+        assert Path(source).name in {"a.jpg", "b.png"}
+        assert Path(thumb).is_file()
+        assert label == name
+    assert [name for name, _ in drawn] == ["a.jpg", "b.png"]
+    assert list((cache / "rice-theme").glob(".index-*")) == []
+
+
+def test_refresh_cache_requires_magick(tmp_path, monkeypatch):
+    runtime = _runtime(tmp_path, monkeypatch, ["a.png"])
+    _cache(tmp_path, monkeypatch)
+
+    with pytest.raises(RuntimeError, match="ImageMagick"):
+        refresh_cache(runtime, which=lambda name: None)
+
+
+def test_set_theme_resolves_relative_path_under_wallpaper_dir(tmp_path, monkeypatch):
+    runtime = _runtime(tmp_path, monkeypatch, ["a.png"])
+    runner = Runner()
+
+    target = set_theme(runtime, "a.png", runner=runner)
+
+    assert target == (tmp_path / "wallpapers/a.png").resolve()
+    assert runner.calls[0][0][4] == str(target)
+    assert _marker(tmp_path).read_text() == str(target)
+
+
+def test_set_theme_rejects_paths_outside_wallpaper_dir(tmp_path, monkeypatch):
+    runtime = _runtime(tmp_path, monkeypatch, ["a.png"])
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"x")
+
+    with pytest.raises(ValueError, match="outside"):
+        set_theme(runtime, str(outside), runner=Runner())
+
+
+class PanelRunner:
+    def __init__(self, active=False):
+        self.active = active
+        self.calls = []
+
+    def __call__(self, command, **kwargs):
+        self.calls.append(command)
+        if command[1:] == ["msg", "status"]:
+            state = "rice/themes:panel" if self.active else ""
+            output = f'"activePanelId": "{state}"'
+            return subprocess.CompletedProcess(command, 0, output, "")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+
+def test_panel_active_detects_open_theme_panel():
+    assert panel_active(PanelRunner(active=True)) is True
+    assert panel_active(PanelRunner(active=False)) is False
+
+
+def test_panel_active_is_false_without_noctalia():
+    def missing(command, **kwargs):
+        raise FileNotFoundError("noctalia")
+
+    assert panel_active(missing) is False
+
+
+def test_toggle_panel_opens_when_closed():
+    runner = PanelRunner(active=False)
+
+    assert toggle_panel(runner) is True
+    assert runner.calls == [
+        ["noctalia", "msg", "status"],
+        ["noctalia", "msg", "panel-close"],
+        ["noctalia", "msg", "panel-open", "rice/themes:panel"],
+    ]
+
+
+def test_toggle_panel_closes_when_open():
+    runner = PanelRunner(active=True)
+
+    assert toggle_panel(runner) is False
+    assert runner.calls == [
+        ["noctalia", "msg", "status"],
+        ["noctalia", "msg", "panel-close"],
+    ]

@@ -1,0 +1,17 @@
+id = "rice/themes"
+name = "Bleach Themes"
+version = "1.1.0"
+plugin_api = 51
+author = "rice"
+license = "MIT"
+description = "Wallpaper and palette switcher backed by `rice theme`."
+tags = ["theming", "wallpaper"]
+icon = "palette"
+
+[[panel]]
+id = "panel"
+entry = "panel.luau"
+width = 1120
+height = 740
+placement = "attached"
+position = "auto"

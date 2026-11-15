@@ -30,6 +30,13 @@ def test_cli_has_core_commands():
         assert command in result.stdout
 
 
+def test_cli_help_lists_theme_panel_and_set():
+    result = run_cli("theme", "--help")
+    assert result.returncode == 0
+    for value in ("set", "refresh", "panel", "status"):
+        assert value in result.stdout
+
+
 def test_doctor_reports_problems(monkeypatch, capsys):
     import shutil
 

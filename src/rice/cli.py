@@ -73,10 +73,28 @@ def run_theme_command(args):
     from pathlib import Path
 
     from .theme import _apply, boot_theme, hourly_theme, list_wallpapers
-    from .theme import next_theme, previous_theme
+    from .theme import current_theme, next_theme, previous_theme, refresh_cache
+    from .theme import set_theme, toggle_panel
+
+    if args.value == "panel":
+        toggle_panel()
+        return 0
+    if args.value == "refresh":
+        refresh_cache(_runtime())
+        return 0
+    if args.value == "status":
+        path = current_theme()
+        if path is not None:
+            print(path)
+        return 0
+
+    if args.value == "set" and not args.path:
+        raise ValueError("theme set requires an image path")
 
     runtime = _runtime()
-    if args.value == "boot":
+    if args.value == "set":
+        set_theme(runtime, args.path)
+    elif args.value == "boot":
         boot_theme(runtime)
     elif args.value == "hourly":
         hourly_theme(runtime)
@@ -118,8 +136,20 @@ def main(argv=None):
 
     theme_parser = sub.add_parser("theme", help="manage wallpapers")
     theme_parser.add_argument(
-        "value", choices=["next", "previous", "boot", "hourly", "random"]
+        "value",
+        choices=[
+            "next",
+            "previous",
+            "boot",
+            "hourly",
+            "random",
+            "set",
+            "refresh",
+            "panel",
+            "status",
+        ],
     )
+    theme_parser.add_argument("path", nargs="?", help="image path for `theme set`")
     theme_parser.set_defaults(func=run_theme_command)
 
     args = parser.parse_args(argv)

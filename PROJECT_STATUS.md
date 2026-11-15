@@ -8,7 +8,7 @@ last_updated: "2026-11-15"
 next_steps:
   - Review and integrate the core branch
   - Verify the installer on a clean Arch/CachyOS target
-  - Build the Noctalia bar/plugin port and KWin shortcut bindings
+  - Finish the Noctalia plugin port and verify KWin shortcut bindings
   - Build the local web configurator with canvas zones and apply/backup
   - Resolve admin-only KWin blur and login/Plymouth work separately
 ---
@@ -16,6 +16,7 @@ next_steps:
 # Current State
 
 - Core backend, installer, generated artifacts, docs, tests, and MIT license are implemented on `feat/core`.
-- Full suite: 105 tests passing; integration dry-run and PII gates green.
+- Full suite: 120 tests passing; integration dry-run and PII gates green.
+- Theme CLI parity and the `rice/themes` picker plugin are implemented on `feat/noctalia-ui`.
 - Installer has not yet been exercised on a clean target; live rice is unchanged.
 - No remote or public push yet. Noctalia bar/plugins and the web configurator remain follow-up plans.

@@ -83,8 +83,8 @@ Installed runtime paths:
 | `$XDG_CONFIG_HOME/rice/rice.toml` | User configuration. |
 
 If the repository contains a `plugins/` directory, each child directory is
-copied to `$XDG_DATA_HOME/noctalia-plugins/`. The current core does not ship
-plugins; that directory is reserved for the future shell port.
+copied to `$XDG_DATA_HOME/noctalia-plugins/`. The `themes` plugin provides the
+`rice/themes:panel` wallpaper picker opened by `rice theme panel`.
 
 ## Dry Run
 

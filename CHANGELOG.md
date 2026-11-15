@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Theme CLI parity and theme selector plugin
+
+- Added `rice theme set <path>`, `refresh`, `panel`, and `status`; `set` resolves inside `theme.wallpaper_dir` and rejects paths outside it.
+- `refresh` builds `$XDG_CACHE_HOME/rice-theme/index.tsv` atomically with 480x270 JPEG thumbnails and fails clearly when `magick` is missing.
+- `panel` toggles `rice/themes:panel` through the same `noctalia msg` status probe the old script used.
+- Moved the theme selector to `plugins/themes/` with argv-based `rice theme` calls, `HOME`/XDG lookups, and no machine-specific paths.
+- Updated theming and install docs; suite is now 120 tests.
+
 ## 2026-11-15 — Core hardening and release hygiene
 
 - Fixed triple-monitor layout selection so side and portrait zones use the two non-primary outputs regardless of KScreen order.
