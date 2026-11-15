@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-15 — Fix forced fullscreen in appearance profile
+
+- Removed the generated all-window fullscreen rule from `rice appearance`; it matched every normal window and forced fullscreen after leaving it.
+- The profile now only sets opacity and the game exception; it never sets the fullscreen property.
+- Added a regression test that generated rules contain no fullscreen action.
+
 ## 2026-11-15 — Configurator save backups and widget validation
 
 - Save and restore now copy the previous `rice.toml` into `$XDG_STATE_HOME/rice/web-backups/<stamp>` before every successful write, reusing the backup timestamp/collision logic; no-op and invalid writes create no backup, and a failed write rolls the fresh backup back and returns JSON 500 instead of dropping the connection.
