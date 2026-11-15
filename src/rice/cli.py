@@ -4,7 +4,10 @@ import subprocess
 import sys
 
 from . import __version__
+from .activities import current_activity
 from .paths import state_home
+
+CHEATSHEET_PANEL = "rice/cheatsheet:panel"
 
 
 def run_apply(args):
@@ -70,6 +73,40 @@ def run_daemon(args):
     return 0
 
 
+def run_cheatsheet(args):
+    subprocess.run(
+        ["noctalia", "msg", "panel-toggle", CHEATSHEET_PANEL], check=True
+    )
+    return 0
+
+
+def run_quickstart(args):
+    from .startup import run_autostart, run_startup
+
+    runtime = _runtime()
+    roles = {
+        entry["kde_id"]: role
+        for role, entry in runtime.get("activities", {}).items()
+        if isinstance(entry, dict) and entry.get("kde_id")
+    }
+    role = roles.get(current_activity().strip())
+    if role is None:
+        raise RuntimeError(
+            "current KDE activity is not mapped to a rice role; run `rice apply` first"
+        )
+    if role == "private":
+        run_startup(runtime)
+    else:
+        run_autostart(runtime, role)
+    return 0
+
+
+def run_arrange(args):
+    raise RuntimeError(
+        "window arrangement needs the KWin placement method installed by the next iteration"
+    )
+
+
 def run_theme_command(args):
     from pathlib import Path
 
@@ -131,6 +168,21 @@ def main(argv=None):
 
     daemon_parser = sub.add_parser("daemon", help="run the rice D-Bus daemon")
     daemon_parser.set_defaults(func=run_daemon)
+
+    cheatsheet_parser = sub.add_parser(
+        "cheatsheet", help="toggle the shortcut cheatsheet panel"
+    )
+    cheatsheet_parser.set_defaults(func=run_cheatsheet)
+
+    quickstart_parser = sub.add_parser(
+        "quickstart", help="launch the app set for the current activity"
+    )
+    quickstart_parser.set_defaults(func=run_quickstart)
+
+    arrange_parser = sub.add_parser(
+        "arrange", help="reapply the window layout to the current activity"
+    )
+    arrange_parser.set_defaults(func=run_arrange)
 
     doctor_parser = sub.add_parser("doctor", help="check runtime dependencies")
     doctor_parser.set_defaults(func=run_doctor)

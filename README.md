@@ -69,6 +69,9 @@ rice apply
 | `rice theme next` | Apply the next wallpaper in sorted order. |
 | `rice theme previous` | Apply the previous wallpaper. |
 | `rice theme random` | Apply a random wallpaper from the configured directory. |
+| `rice cheatsheet` | Toggle the shortcut cheatsheet panel. |
+| `rice quickstart` | Launch the app set that belongs to the current activity. |
+| `rice arrange` | Reapply the window layout (wired to KWin in a later iteration). |
 | `rice daemon` | Run the user D-Bus daemon in the foreground. |
 
 ## Documentation

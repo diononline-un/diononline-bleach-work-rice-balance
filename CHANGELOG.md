@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Profile and cheatsheet plugins
+
+- Ported the activity switch to `plugins/profile/` as `rice/profile:bar`; it reads activity ids from `$XDG_STATE_HOME/rice/runtime.json` and calls `rice activity work|private` through argv.
+- Ported the shortcut reference to `plugins/cheatsheet/` as `rice/cheatsheet:panel` with English group titles and role-neutral screen labels (`Main`, `Side`, `Portrait`) instead of connector names.
+- Added `rice cheatsheet`, `rice quickstart` (launches the private startup set or the Work autostart set for the current activity), and `rice arrange` (clear placeholder until the KWin method lands).
+- Fixed `_qdbus` so it passes `interface.method` as one token; recent `qdbus6` rejected the split form and `rice activity` failed on the live machine.
+- Updated README command table and INSTALL plugin description; suite is now 133 tests.
+
 ## 2026-11-15 — Theme CLI parity and theme selector plugin
 
 - Added `rice theme set <path>`, `refresh`, `panel`, and `status`; `set` resolves inside `theme.wallpaper_dir` and rejects paths outside it.

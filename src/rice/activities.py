@@ -6,8 +6,9 @@ ACTIVITY_IFACE = "org.kde.ActivityManager.Activities"
 
 
 def _qdbus(args) -> str:
+    method, *rest = args
     return subprocess.run(
-        ["qdbus6", ACTIVITY_SERVICE, ACTIVITY_PATH, ACTIVITY_IFACE, *args],
+        ["qdbus6", ACTIVITY_SERVICE, ACTIVITY_PATH, f"{ACTIVITY_IFACE}.{method}", *rest],
         capture_output=True, text=True, check=True
     ).stdout.strip()
 
@@ -32,3 +33,8 @@ def ensure_activity(name: str, runner=None) -> str:
 def switch_activity(activity_id: str, runner=None) -> None:
     runner = runner or _qdbus
     runner(["SetCurrentActivity", activity_id])
+
+
+def current_activity(runner=None) -> str:
+    runner = runner or _qdbus
+    return runner(["CurrentActivity"]).strip()

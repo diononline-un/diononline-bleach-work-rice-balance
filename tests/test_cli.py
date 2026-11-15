@@ -37,6 +37,95 @@ def test_cli_help_lists_theme_panel_and_set():
         assert value in result.stdout
 
 
+def test_cli_help_lists_cheatsheet_and_quickstart():
+    result = run_cli("--help")
+    assert "cheatsheet" in result.stdout
+    assert "quickstart" in result.stdout
+    assert "arrange" in result.stdout
+
+
+def test_cheatsheet_toggles_panel(monkeypatch):
+    from rice import cli
+
+    calls = []
+    monkeypatch.setattr(cli.subprocess, "run", lambda *args, **kwargs: calls.append(args))
+
+    assert cli.run_cheatsheet(None) == 0
+    assert calls == [(["noctalia", "msg", "panel-toggle", "rice/cheatsheet:panel"],)]
+
+
+def test_quickstart_launches_private_startup(monkeypatch):
+    from rice import cli, startup
+
+    runtime = {
+        "activities": {
+            "private": {"kde_id": "private-id"},
+            "work": {"kde_id": "work-id"},
+        },
+        "startup": {"always": [], "private": []},
+        "autostart": {},
+    }
+    launched = []
+    monkeypatch.setattr(cli, "_runtime", lambda: runtime)
+    monkeypatch.setattr(cli, "current_activity", lambda: "private-id")
+    monkeypatch.setattr(
+        startup, "run_startup", lambda data, launcher=None: launched.append("private")
+    )
+    monkeypatch.setattr(
+        startup, "run_autostart", lambda data, role: launched.append(role)
+    )
+
+    assert cli.run_quickstart(None) == 0
+    assert launched == ["private"]
+
+
+def test_quickstart_launches_work_autostart(monkeypatch):
+    from rice import cli, startup
+
+    runtime = {
+        "activities": {
+            "private": {"kde_id": "private-id"},
+            "work": {"kde_id": "work-id"},
+        },
+        "startup": {"always": [], "private": []},
+        "autostart": {},
+    }
+    launched = []
+    monkeypatch.setattr(cli, "_runtime", lambda: runtime)
+    monkeypatch.setattr(cli, "current_activity", lambda: "work-id")
+    monkeypatch.setattr(startup, "run_startup", lambda data, launcher=None: launched.append("private"))
+    monkeypatch.setattr(startup, "run_autostart", lambda data, role: launched.append(role))
+
+    assert cli.run_quickstart(None) == 0
+    assert launched == ["work"]
+
+
+def test_quickstart_rejects_unknown_activity(monkeypatch, capsys):
+    from rice import cli
+
+    monkeypatch.setattr(
+        cli,
+        "_runtime",
+        lambda: {"activities": {"private": {"kde_id": "private-id"}}},
+    )
+    monkeypatch.setattr(cli, "current_activity", lambda: "someone-elses-id")
+
+    assert cli.main(["quickstart"]) == 1
+    captured = capsys.readouterr()
+    assert "current KDE activity" in captured.err
+    assert captured.err.count("\n") == 1
+
+
+def test_arrange_reports_missing_kwin_method(monkeypatch, capsys):
+    from rice import cli
+
+    assert cli.main(["arrange"]) == 1
+    captured = capsys.readouterr()
+    assert "rice: " in captured.err
+    assert "KWin" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_doctor_reports_problems(monkeypatch, capsys):
     import shutil
 

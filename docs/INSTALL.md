@@ -84,7 +84,10 @@ Installed runtime paths:
 
 If the repository contains a `plugins/` directory, each child directory is
 copied to `$XDG_DATA_HOME/noctalia-plugins/`. The `themes` plugin provides the
-`rice/themes:panel` wallpaper picker opened by `rice theme panel`.
+`rice/themes:panel` wallpaper picker opened by `rice theme panel`, the
+`profile` plugin provides the `rice/profile:bar` Work/Private switch, and the
+`cheatsheet` plugin provides the `rice/cheatsheet:panel` shortcut reference
+opened by `rice cheatsheet`.
 
 ## Dry Run
 
