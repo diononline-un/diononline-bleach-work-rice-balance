@@ -105,6 +105,12 @@ def test_mode_is_passed_through(mode):
     assert kwin_rules(config)[0]["mode"] == mode
 
 
+def test_noctalia_merges_base_bar_and_widgets():
+    data = tomllib.loads(generate_noctalia(CONFIG))
+    assert data["bar"]["main"]["position"] == "top"
+    assert data["desktop_widgets"]["enabled"] is True
+
+
 def test_noctalia_output_is_valid_toml():
     data = tomllib.loads(generate_noctalia(CONFIG))
     assert "desktop_widgets" in data

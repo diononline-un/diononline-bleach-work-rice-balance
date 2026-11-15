@@ -33,7 +33,7 @@ def test_apply_writes_generated_files_and_backs_up(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(home / ".local/state"))
     result = apply_config(config, runner=lambda *args, **kwargs: None)
     assert any("main.js" in str(path) for path in result.changed)
-    assert (home / ".config/noctalia/rice.toml").exists()
+    assert (home / ".config/noctalia/config.toml").exists()
 
 
 def test_apply_writes_kwin_metadata_runtime_and_units(tmp_path, monkeypatch):
@@ -67,7 +67,7 @@ def test_dry_run_writes_nothing(tmp_path, monkeypatch):
 
 def test_apply_backs_up_existing_files(tmp_path, monkeypatch):
     config, home = _config(tmp_path, monkeypatch)
-    target = home / ".config/noctalia/rice.toml"
+    target = home / ".config/noctalia/config.toml"
     target.parent.mkdir(parents=True)
     target.write_text("old noctalia settings\n")
 
@@ -75,7 +75,7 @@ def test_apply_backs_up_existing_files(tmp_path, monkeypatch):
 
     backups = list((home / ".local/state/rice/backups").iterdir())
     assert len(backups) == 1
-    assert (backups[0] / "rice.toml").read_text() == "old noctalia settings\n"
+    assert (backups[0] / "config.toml").read_text() == "old noctalia settings\n"
     assert target.read_text() != "old noctalia settings\n"
     assert not list(home.rglob("*.tmp"))
 

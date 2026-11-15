@@ -1,11 +1,12 @@
 import json
+import tomllib
 from pathlib import Path
 
 import tomli_w
 
 TEMPLATE = Path(__file__).resolve().parents[2] / "templates" / "kwin" / "main.js.in"
-NOCTALIA_TEMPLATE = (
-    Path(__file__).resolve().parents[2] / "templates" / "noctalia" / "rice.toml.in"
+NOCTALIA_BASE = (
+    Path(__file__).resolve().parents[2] / "defaults" / "noctalia" / "config.toml"
 )
 SYSTEMD_UNITS = {
     "rice-daemon.service": "rice daemon",
@@ -99,21 +100,23 @@ def _widget_anchor(config: dict, widget: dict) -> dict:
     }
 
 
+def load_noctalia_base() -> dict:
+    with NOCTALIA_BASE.open("rb") as handle:
+        return tomllib.load(handle)
+
+
 def generate_noctalia(config: dict) -> str:
+    data = load_noctalia_base()
     widgets = [
         _widget_anchor(config, widget) for widget in config.get("desktop_widget", [])
     ]
-    data = {
-        "desktop_widgets": {
-            "enabled": True,
-            "widget_order": [f"rice_{index}" for index in range(len(widgets))],
-            "widget": {
-                f"rice_{index}": widget for index, widget in enumerate(widgets)
-            },
-        }
+    data["desktop_widgets"] = {
+        "enabled": True,
+        "schema_version": 2,
+        "widget_order": [f"rice_{index}" for index in range(len(widgets))],
+        "widget": {f"rice_{index}": widget for index, widget in enumerate(widgets)},
     }
-    header = NOCTALIA_TEMPLATE.read_text(encoding="utf-8")
-    return header + tomli_w.dumps(data)
+    return tomli_w.dumps(data)
 
 
 def generate_runtime(config: dict) -> dict:

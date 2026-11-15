@@ -334,7 +334,7 @@ def uninstall(dry_run=False, runner=None):
 
     targets = [
         data_home() / "rice",
-        config_home() / "noctalia" / "rice.toml",
+        config_home() / "noctalia" / "config.toml",
         data_home() / "kwin" / "scripts" / "rice-placement",
         config_path(),
         state_home() / "rice" / "runtime.json",

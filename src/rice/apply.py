@@ -113,7 +113,7 @@ def _generated(config: dict) -> dict[Path, str]:
     generated = {
         kwin_dir / "contents/code/main.js": generate_kwin(config),
         kwin_dir / "metadata.json": _metadata(),
-        noir_dir / "rice.toml": generate_noctalia(config),
+        noir_dir / "config.toml": generate_noctalia(config),
         runtime_path: json.dumps(generate_runtime(config), indent=2),
     }
     for name, content in generate_systemd(config, ROOT).items():

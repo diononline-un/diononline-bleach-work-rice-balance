@@ -239,7 +239,7 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
         "", encoding="utf-8"
     )
     (config / "noctalia").mkdir(parents=True)
-    (config / "noctalia/rice.toml").write_text("", encoding="utf-8")
+    (config / "noctalia/config.toml").write_text("", encoding="utf-8")
     (config / "noctalia/other.toml").write_text("", encoding="utf-8")
     (config / "rice").mkdir()
     (config / "rice/rice.toml").write_text("", encoding="utf-8")
@@ -280,7 +280,7 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
     ]
     assert not (data / "rice").exists()
     assert not (data / "kwin/scripts/rice-placement").exists()
-    assert not (config / "noctalia/rice.toml").exists()
+    assert not (config / "noctalia/config.toml").exists()
     assert (config / "noctalia/other.toml").is_file()
     assert not (config / "rice/rice.toml").exists()
     assert not (state / "rice/runtime.json").exists()
