@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-15 — Configurator packaging, docs, and PR
+
+- `install_tree` now copies `src/web` to `$XDG_DATA_HOME/rice/src/web` and writes an installed `rice-config` launcher next to `rice`; both launchers resolve the runtime through `$XDG_DATA_HOME` instead of the checkout path.
+- Uninstall removes each launcher only when its rice module marker is present, so a user-owned `rice` or `rice-config` file survives, and the installed web assets leave with `$XDG_DATA_HOME/rice`.
+- Added installer tests for web assets, both launchers, installed `WEB_ROOT`/catalog resolution, dry-run behavior, and ownership-aware launcher removal.
+- Added `docs/CONFIGURATOR.md` (start command, token and loopback model, tabs, canvas, validate/save/apply, backup/restore, API, limitations) and linked it from the README.
+- README, `docs/INSTALL.md`, and `docs/ARCHITECTURE.md` describe `rice config`/`rice-config`, the web assets, and the installed paths; `PROJECT_STATUS.md` marks Plan 3 implemented with live verification still open.
+- PII scan now covers `.html` and `.css` and asserts the web assets are scanned. Suite is 210 tests.
+
 ## 2026-11-15 — Structured config editors and apply errors
 
 - Apps, Placement, Startup, Autostart, Widgets, Theme, and Outputs tabs now edit `state.config` in place: tables with add/remove rows, selects limited to the configured apps/activities/zones, checkbox lists for startup and autostart, and lazy creation of the `[theme]` table.

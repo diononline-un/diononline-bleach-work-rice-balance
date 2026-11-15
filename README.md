@@ -6,10 +6,10 @@ activities, startup sets, and wallpapers; the core backend generates every KWin,
 Noctalia, systemd, and runtime file from that document.
 
 The project is split into three plans. This repository contains the core
-backend from plan one and the Noctalia shell port from plan two. The Noctalia
-bar, four plugins, generated shortcuts, and bar actions are implemented; live
-verification on a target desktop is pending. The local web configurator is
-plan three and is not implemented here.
+backend from plan one, the Noctalia shell port from plan two, and the local web
+configurator from plan three. The Noctalia bar, four plugins, generated
+shortcuts, bar actions, and the browser editor are implemented; live
+verification on a target desktop is still pending.
 
 ## What It Does
 
@@ -21,6 +21,8 @@ plan three and is not implemented here.
 - A Noctalia bar with rice actions, a theme selector, a Work/Private indicator,
   and a shortcut cheatsheet, plus an optional media plugin.
 - Generated KWin shortcuts that resolve window-move targets by output role.
+- A local web configurator for every section of the document, with a zone
+  canvas and validate, save, apply, backup, and restore actions.
 - Startup (login) and autostart (first activity entry) as separate concepts.
 - Wallpaper rotation from a user-supplied directory with fullscreen and idle
   guards.
@@ -52,13 +54,19 @@ Preview the full install without changing packages or files:
 ./install.sh --dry-run
 ```
 
-After installation the `rice` wrapper lives in `$HOME/.local/bin/rice`. Verify
-the session and the generated plan:
+After installation the `rice` and `rice-config` wrappers live in
+`$HOME/.local/bin/`. Verify the session and the generated plan:
 
 ```bash
 rice doctor
 rice apply --dry-run
 rice apply
+```
+
+Open the web configurator when you want to edit the document with a browser:
+
+```bash
+rice config
 ```
 
 ## Everyday Commands
@@ -78,6 +86,8 @@ rice apply
 | `rice quickstart` | Launch the app set that belongs to the current activity. |
 | `rice arrange` | Reapply the window layout through the daemon and KWin. |
 | `rice shortcuts disable-conflicts` | Clear KDE shortcuts that collide with the rice bindings. |
+| `rice config` | Start the local web configurator and open it in your browser. |
+| `rice-config` | Start the same configurator server directly, without the `rice` subcommand. |
 | `rice daemon` | Run the user D-Bus daemon in the foreground. |
 
 ## Documentation
@@ -90,6 +100,8 @@ rice apply
 - [Theming](docs/THEMING.md): wallpaper rotation, guards, and generated units.
 - [Noctalia](docs/NOCTALIA.md): merged config, bar, plugins, and media setup.
 - [Shortcuts](docs/SHORTCUTS.md): bindings, output roles, and conflict cleanup.
+- [Configurator](docs/CONFIGURATOR.md): local web server, token model, tabs,
+  canvas, and backup/restore.
 - [Assets](docs/ASSETS.md): metadata-only wallpaper policy and manifest format.
 - [Troubleshooting](docs/TROUBLESHOOTING.md): common display, Noctalia, and unit issues.
 
@@ -100,6 +112,7 @@ rice apply
 ├── install.sh              installer bootstrap
 ├── uninstall.sh            removal bootstrap
 ├── bin/rice                checkout-relative CLI wrapper
+├── bin/rice-config         checkout-relative configurator wrapper
 ├── defaults/               canonical configuration and app catalog
 │   ├── rice.toml
 │   ├── apps.toml
@@ -108,6 +121,7 @@ rice apply
 ├── docs/                   published English documentation
 ├── plugins/                themes, profile, cheatsheet, and media plugins
 ├── src/rice/               core Python backend
+├── src/web/                configurator HTML, CSS, and JavaScript
 ├── templates/              KWin, Noctalia, and systemd templates
 ├── assets/wallpapers/      metadata manifest only, no image files
 └── tests/                  unit, integration, and privacy tests
@@ -132,8 +146,9 @@ directory you configure and never downloads or scrapes images. See
   newer session.
 - The optional media plugin expects your own compatible local media API; no
   service is bundled.
-- The local web configurator is plan three and is not implemented. Edit
-  `rice.toml` and run `rice apply` in the current iteration.
+- The local web configurator is implemented, but its pointer dragging and
+  canvas rendering still need a manual check in a real browser, and Apply runs
+  the full runtime reload.
 - Every output receives the same wallpaper. Per-output wallpaper sets are not
   implemented.
 - Animated or video wallpapers are not supported.

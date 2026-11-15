@@ -64,8 +64,8 @@ argv arrays and never pass through a shell.
 3. Installs official packages with `pacman` and helper-only packages with the
    AUR helper. Both calls use `--needed --noconfirm`.
 4. Copies the runtime tree to `$XDG_DATA_HOME/rice/`, installs each plugin to
-   `$XDG_DATA_HOME/noctalia-plugins/`, and writes the installed `rice` wrapper
-   to `$HOME/.local/bin/rice`.
+   `$XDG_DATA_HOME/noctalia-plugins/`, and writes the installed `rice` and
+   `rice-config` wrappers to `$HOME/.local/bin/`.
 5. Detects outputs with `kscreen-doctor -j`, picks a layout preset, resolves the
    Private and Work activities, and builds a complete configuration.
 6. Writes `$XDG_CONFIG_HOME/rice/rice.toml` atomically.
@@ -76,12 +76,14 @@ Installed runtime paths:
 
 | Path | Content |
 | --- | --- |
-| `$XDG_DATA_HOME/rice/src/rice` | Python package used by the installed wrapper. |
+| `$XDG_DATA_HOME/rice/src/rice` | Python package used by the installed wrappers. |
+| `$XDG_DATA_HOME/rice/src/web` | Configurator HTML, CSS, and JavaScript served by `rice config`. |
 | `$XDG_DATA_HOME/rice/templates` | KWin, Noctalia, and systemd templates. |
 | `$XDG_DATA_HOME/rice/defaults` | Canonical config, app catalog, layout presets, and the Noctalia base config. |
 | `$XDG_DATA_HOME/rice/assets` | Wallpaper metadata manifest. |
 | `$XDG_DATA_HOME/noctalia-plugins` | Installed `rice/*` plugins, when the source tree contains `plugins/`. |
 | `$HOME/.local/bin/rice` | Installed CLI wrapper. |
+| `$HOME/.local/bin/rice-config` | Installed configurator wrapper. |
 | `$XDG_CONFIG_HOME/rice/rice.toml` | User configuration. |
 | `$XDG_CONFIG_HOME/noctalia/config.toml` | Generated merged Noctalia configuration. |
 
@@ -160,11 +162,13 @@ created:
 - `$XDG_DATA_HOME/kwin/scripts/rice-placement`
 - `$XDG_STATE_HOME/rice/runtime.json`
 - `$XDG_STATE_HOME/rice/theme-current`
-- `$HOME/.local/bin/rice`, and only when the file contains the rice CLI marker
+- `$HOME/.local/bin/rice` and `$HOME/.local/bin/rice-config`, each only when the
+  file contains its rice module marker
 
 It keeps your wallpapers, apply backups, unrelated Noctalia configuration
 (including `media.json`), a hand-written `config.toml` that lacks the rice
-marker, unrelated systemd units, and unrelated KWin scripts.
+marker, unrelated systemd units, unrelated KWin scripts, and any hand-written
+launcher that lacks the rice marker.
 
 ## Development Install
 
@@ -181,12 +185,13 @@ The checkout wrapper works the same way:
 
 ```bash
 PYTHONPATH=src bin/rice doctor
+PYTHONPATH=src bin/rice-config --no-browser
 ```
 
 Run the shell syntax check after editing the wrappers:
 
 ```bash
-bash -n install.sh uninstall.sh bin/rice
+bash -n install.sh uninstall.sh bin/rice bin/rice-config
 ```
 
 ## Next Steps
@@ -196,4 +201,5 @@ bash -n install.sh uninstall.sh bin/rice
 - Read [Configuration](CONFIGURATION.md) before editing `rice.toml`.
 - Read [Placement](PLACEMENT.md) to map outputs and zones.
 - Read [Startup](STARTUP.md) to separate login apps from per-activity apps.
+- Read [Configurator](CONFIGURATOR.md) to edit the document in a browser.
 - Run `rice doctor` after any session or driver change.
