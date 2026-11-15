@@ -1758,6 +1758,8 @@ def test_no_personal_data_in_committed_files():
             continue
         if path.name == "test_pii.py" or "docs/superpowers" in str(path) or "assets/wallpapers" in str(path):
             continue
+        if any(part in {".git", ".venv", ".superpowers", ".worktrees"} for part in path.parts):
+            continue
         if path.suffix not in {".md", ".py", ".toml", ".sh", ".js", ".in"}:
             continue
         for number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
