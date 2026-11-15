@@ -1,10 +1,9 @@
 # Appearance and Window Opacity
 
-`rice appearance` installs conservative KWin rules for whole-window opacity.
-KWin cannot detect which parts of an application are empty: an app must draw a
-transparent background itself for the wallpaper to show through only in empty
-areas. The generated rules therefore make the whole window translucent, while
-games stay fully opaque; fullscreen windows are never forced by rice.
+Application windows are fully opaque. `rice appearance` removes legacy KWin
+opacity rules owned by rice and does not add new ones. It does not touch the
+Noctalia shell: bars, capsules, panels, and desktop widgets keep their separate
+glass styling.
 
 ## Apply
 
@@ -15,41 +14,22 @@ rice appearance remove
 ```
 
 `apply` backs up `kwinrulesrc` under
-`$XDG_STATE_HOME/rice/backups/<timestamp>/`, writes only rice-owned rule groups,
-and reloads KWin. `remove` removes only groups prefixed with
-`rice-appearance-`; existing user rules are preserved.
+`$XDG_STATE_HOME/rice/backups/<timestamp>/`, removes only groups prefixed with
+`rice-appearance-`, and reloads KWin. Existing user-defined rules are preserved.
+`remove` performs the same cleanup.
 
-## Default profile
+## Policy
 
-| Applications | Active opacity | Inactive opacity |
-| --- | ---: | ---: |
-| Browsers | 100% | 100% |
-| VS Code, OpenCode | 92% | 86% |
-| Claude, Claude Desktop, Slack, Discord | 94% | 88% |
-| Dolphin | 96% | 92% |
-| Obsidian, Thunderbird | 94% | 88% |
-
-Browsers (`brave-browser`, `google-chrome`, `chromium`, `firefox`) are left fully
-opaque and are not part of the transparency profile. This keeps web pages and
-videos solid.
-
-`steam`, `steam_app_*`, and `gamescope` are forced to 100%. VLC, mpv, Celluloid,
-Haruna, SMPlayer, and YouTube Music are explicitly kept at 100%. The profile
-never forces fullscreen; windows that are not listed keep the user's current KWin
-appearance.
-
-Terminal transparency is better handled natively by Alacritty, Kitty, or
-Konsole. Combining native terminal opacity with these KWin rules would stack
-the two effects.
+- Application windows: 100% opaque.
+- Noctalia shell, bar, capsules, panels, desktop widgets: controlled by the
+  Noctalia configuration, not by this command.
+- Browsers, editors, media players, Steam, and games: all application windows
+  follow the solid-window policy.
+- Any previous rice opacity profile is removed by `rice appearance apply`.
 
 ## Limitations
 
-- The rules make the whole window translucent, including text. Keep values
-  above 85–90% for text-heavy apps.
-- Browsers are intentionally outside the transparency profile so pages and
-  videos stay solid.
-- Transparent windows look best with a working KWin blur effect. Without blur,
-  busy wallpapers can reduce readability.
-- Games, Steam, VLC, mpv, Celluloid, Haruna, SMPlayer, and YouTube Music are deliberately kept opaque.
-- Editing the rules through System Settings may replace the generated groups;
-  rerun `rice appearance apply` to restore the rice profile.
+- This command only changes KWin window rules; it cannot make an application
+  draw transparent surfaces without rules.
+- Noctalia glass effects are separate and remain enabled.
+- Running the profile again is safe and keeps user-defined rules.

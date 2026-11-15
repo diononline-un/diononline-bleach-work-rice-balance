@@ -1,18 +1,12 @@
 import configparser
 from pathlib import Path
 
-from rice.appearance import (
-    RULE_PREFIX,
-    apply_rules,
-    remove_rules,
-    status,
-)
+from rice.appearance import RULE_PREFIX, apply_rules, remove_rules, status
 
 
 def _rules(path: Path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(path.parent / "config"))
     monkeypatch.setenv("XDG_STATE_HOME", str(path.parent / "state"))
-    monkeypatch.setenv("XDG_DATA_HOME", str(path.parent / "data"))
     return path
 
 
@@ -23,80 +17,60 @@ def _parser(path: Path):
     return parser
 
 
-def test_apply_preserves_existing_rules_and_adds_exceptions(tmp_path, monkeypatch):
-    path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
-    path.write_text(
-        "[General]\nOrder=existing\n\n[existing]\nDescription=Keep me\ntypes=1\n",
-        encoding="utf-8",
+def _legacy_rules():
+    return (
+        "[General]\nOrder=existing,rice-appearance-code\n\n"
+        "[existing]\nDescription=Keep me\ntypes=1\n\n"
+        "[rice-appearance-code]\nDescription=Old rice rule\nopacityactive=92\n"
     )
+
+
+def test_apply_removes_legacy_rules_and_preserves_existing(tmp_path, monkeypatch):
+    path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
+    path.write_text(_legacy_rules(), encoding="utf-8")
     result = apply_rules(path, runner=lambda *args, **kwargs: None)
 
     parser = _parser(path)
     assert parser.has_section("existing")
     assert parser.get("existing", "Description") == "Keep me"
-    order = parser.get("General", "Order").split(",")
-    assert order[0] == RULE_PREFIX + "games"
-    assert "existing" in order
-    assert parser.get(RULE_PREFIX + "code", "opacityactive") == "92"
-    assert parser.get(RULE_PREFIX + "code", "opacityinactive") == "86"
-    assert parser.get(RULE_PREFIX + "media", "opacityactive") == "100"
-    assert not parser.has_section(RULE_PREFIX + "brave")
-    assert result.groups
+    assert not any(group.startswith(RULE_PREFIX) for group in parser.sections())
+    assert parser.get("General", "Order") == "existing"
+    assert result.groups == ()
     assert result.backup is not None
 
 
-def test_apply_is_idempotent_and_keeps_one_rule_per_app(tmp_path, monkeypatch):
+def test_apply_is_idempotent_with_no_rules(tmp_path, monkeypatch):
     path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
     apply_rules(path, runner=lambda *args, **kwargs: None)
     apply_rules(path, runner=lambda *args, **kwargs: None)
     parser = _parser(path)
-    groups = [group for group in parser.sections() if group.startswith(RULE_PREFIX)]
-    assert len(groups) == 11
-    assert len(set(groups)) == len(groups)
-    order = parser.get("General", "Order").split(",")
-    assert len(order) == len(set(order))
+    assert not any(group.startswith(RULE_PREFIX) for group in parser.sections())
+    assert parser.get("General", "Order") == ""
 
 
 def test_dry_run_does_not_write_or_backup(tmp_path, monkeypatch):
     path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
-    path.write_text("[General]\nOrder=existing\n", encoding="utf-8")
+    path.write_text(_legacy_rules(), encoding="utf-8")
     before = path.read_bytes()
     result = apply_rules(path, dry_run=True)
-    assert result.groups
+    assert result.groups == ()
     assert path.read_bytes() == before
     assert result.backup is None
 
 
 def test_remove_only_removes_rice_rules(tmp_path, monkeypatch):
     path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
-    path.write_text(
-        "[General]\nOrder=existing\n\n[existing]\nDescription=Keep me\n",
-        encoding="utf-8",
-    )
-    apply_rules(path, runner=lambda *args, **kwargs: None)
+    path.write_text(_legacy_rules(), encoding="utf-8")
     result = remove_rules(path)
     parser = _parser(path)
     assert parser.has_section("existing")
-    assert not any(
-        group.startswith(RULE_PREFIX)
-        for group in parser.sections()
-    )
-    assert result.groups
+    assert not any(group.startswith(RULE_PREFIX) for group in parser.sections())
+    assert result.groups == (RULE_PREFIX + "code",)
 
 
-def test_status_reports_rules(tmp_path, monkeypatch):
+def test_status_reports_no_rules(tmp_path, monkeypatch):
     path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
-    apply_rules(path, runner=lambda *args, **kwargs: None)
     state = status(path)
-    assert state["enabled"] is True
-    assert state["count"] == 11
-    assert RULE_PREFIX + "games" in state["groups"]
-    assert RULE_PREFIX + "media" in state["groups"]
-
-
-def test_no_generated_rule_forces_fullscreen():
-    from rice.appearance import _rule_groups
-
-    for _group, values in _rule_groups():
-        assert "fullscreen" not in values
-        assert "fullscreenrule" not in values
+    assert state["enabled"] is False
+    assert state["count"] == 0
+    assert state["groups"] == []
