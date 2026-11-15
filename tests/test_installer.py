@@ -253,6 +253,7 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
         "rice-startup.service",
         "rice-theme-boot.service",
         "rice-theme-hourly.timer",
+        "rice-shortcuts.service",
     ):
         (config / "systemd/user" / unit).write_text("", encoding="utf-8")
     (config / "systemd/user/other.service").write_text("", encoding="utf-8")
@@ -276,6 +277,7 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
             "rice-startup.service",
             "rice-theme-boot.service",
             "rice-theme-hourly.timer",
+            "rice-shortcuts.service",
         ]
     ]
     assert not (data / "rice").exists()

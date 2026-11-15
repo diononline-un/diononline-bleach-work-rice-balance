@@ -102,9 +102,33 @@ def run_quickstart(args):
 
 
 def run_arrange(args):
-    raise RuntimeError(
-        "window arrangement needs the KWin placement method installed by the next iteration"
+    subprocess.run(
+        [
+            "gdbus",
+            "call",
+            "--session",
+            "--dest",
+            "org.rice.Rice",
+            "--object-path",
+            "/Rice",
+            "--method",
+            "org.rice.Rice.ReapplyPlacement",
+        ],
+        check=True,
     )
+    return 0
+
+
+def run_shortcuts(args):
+    from .shortcuts import disable_conflicts
+
+    cleared = disable_conflicts()
+    if not cleared:
+        print("rice shortcuts: no conflicting KDE shortcuts found")
+    else:
+        for entry in cleared:
+            print(f"rice shortcuts: disabled {entry}")
+    return 0
 
 
 def run_theme_command(args):
@@ -187,6 +211,15 @@ def main(argv=None):
     doctor_parser = sub.add_parser("doctor", help="check runtime dependencies")
     doctor_parser.set_defaults(func=run_doctor)
 
+    shortcuts_parser = sub.add_parser(
+        "shortcuts", help="manage KDE global shortcuts"
+    )
+    shortcuts_sub = shortcuts_parser.add_subparsers(dest="shortcut_action")
+    disable_parser = shortcuts_sub.add_parser(
+        "disable-conflicts", help="clear conflicting KDE global shortcuts"
+    )
+    disable_parser.set_defaults(func=run_shortcuts)
+
     theme_parser = sub.add_parser("theme", help="manage wallpapers")
     theme_parser.add_argument(
         "value",
@@ -208,6 +241,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):
         parser.print_help()
+        return 0
+    if not getattr(args, "func", None):
+        parser.parse_args([args.command, "--help"])
         return 0
     try:
         return args.func(args) or 0

@@ -1,0 +1,73 @@
+// Generated one-shot layout reapply for `rice arrange`.
+// Loaded into a running KWin through the scripting D-Bus API, this script
+// re-places every open window according to the current rules and exits. It is
+// deliberately self-contained: KWin scripts do not share a module scope.
+const RULES = __RULES__;
+
+function outputByName(name) {
+    const screens = workspace.screens;
+    for (let i = 0; i < screens.length; i++) {
+        if (screens[i].name === name) return screens[i];
+    }
+    return null;
+}
+
+function areaFor(output) {
+    return workspace.clientArea(KWin.MaximizeArea, output, workspace.currentDesktop);
+}
+
+function currentActivityMatches(rule) {
+    return !rule.activity || workspace.currentActivity === rule.activity;
+}
+
+function visibleInCurrentActivity(win) {
+    const activities = win.activities;
+    if (!activities || activities.length === 0) return true;
+    return activities.indexOf(workspace.currentActivity) >= 0;
+}
+
+function matchingRule(win) {
+    const cls = (win.resourceClass || "").toLowerCase();
+    const title = (win.caption || "").toLowerCase();
+    for (let i = 0; i < RULES.length; i++) {
+        const rule = RULES[i];
+        if (!rule.wm_class && !rule.match_title) continue;
+        if (!currentActivityMatches(rule)) continue;
+        if (rule.wm_class && rule.wm_class !== cls) continue;
+        if (rule.match_title && title.indexOf(rule.match_title) < 0) continue;
+        return rule;
+    }
+    return null;
+}
+
+function place(win, rule) {
+    const output = outputByName(rule.output);
+    if (!output) return false;
+    const area = areaFor(output);
+    const gap = rule.zone.gap_px || 0;
+    const x = Math.round(area.x + area.width * rule.zone.x + gap);
+    const y = Math.round(area.y + area.height * rule.zone.y + gap);
+    const w = Math.max(200, Math.round(area.width * rule.zone.w - gap * 2));
+    const h = Math.max(200, Math.round(area.height * rule.zone.h - gap * 2));
+
+    if (win.fullScreen) win.fullScreen = false;
+    win.setMaximize(false, false);
+    workspace.sendClientToScreen(win, output);
+    win.frameGeometry = { x: x, y: y, width: w, height: h };
+    if (rule.mode === "maximized") {
+        win.setMaximize(true, true);
+    } else if (rule.mode === "fullscreen") {
+        win.fullScreen = true;
+    }
+    return true;
+}
+
+const windows = workspace.windowList();
+for (let i = 0; i < windows.length; i++) {
+    const win = windows[i];
+    if (!win || !win.normalWindow) continue;
+    if (!visibleInCurrentActivity(win)) continue;
+    const rule = matchingRule(win);
+    if (rule) place(win, rule);
+}
+print("rice-arrange: done");

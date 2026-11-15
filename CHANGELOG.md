@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — KWin shortcuts, bar actions, and arrange
+
+- Generated the KWin shortcut block from the config; move targets resolve by output role (`main`/`side`/`portrait`) instead of hard-coded connector names, and every daemon call uses `org.rice.Rice`.
+- Added `rice arrange`, which re-applies the layout by loading a generated one-shot `arrange.js` through KWin's scripting D-Bus API, backed by the daemon `ReapplyPlacement` method.
+- Added daemon methods `QuickstartWork`/`QuickstartPrivate`/`QuickstartCurrent`, `ToggleCheatSheet`, and `OpenTerminal`/`OpenAnimatedTerminal`; terminals launch from the runtime app catalog with no hard-coded command.
+- Added `rice shortcuts disable-conflicts` plus the generated `rice-shortcuts.service` unit to clear colliding KDE global shortcuts at login.
+- Suite is now 153 tests.
+
 ## 2026-11-15 — Optional media plugin
 
 - Added `plugins/media/` as an opt-in `rice/media` companion for a local YouTube Music API; it stays out of the base bar and desktop widgets until the user enables it.

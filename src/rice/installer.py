@@ -322,6 +322,7 @@ def uninstall(dry_run=False, runner=None):
         "rice-startup.service",
         "rice-theme-boot.service",
         "rice-theme-hourly.timer",
+        "rice-shortcuts.service",
     ]
     command = ["systemctl", "--user", "disable", "--now", *units]
     if dry_run and runner is None:

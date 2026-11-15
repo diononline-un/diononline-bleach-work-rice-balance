@@ -44,6 +44,16 @@ def test_cli_help_lists_cheatsheet_and_quickstart():
     assert "arrange" in result.stdout
 
 
+def test_cli_help_lists_shortcuts():
+    result = run_cli("--help")
+    assert "shortcuts" in result.stdout
+
+
+def test_cli_help_lists_shortcuts_disable_conflicts():
+    result = run_cli("shortcuts", "--help")
+    assert "disable-conflicts" in result.stdout
+
+
 def test_cheatsheet_toggles_panel(monkeypatch):
     from rice import cli
 
@@ -116,14 +126,156 @@ def test_quickstart_rejects_unknown_activity(monkeypatch, capsys):
     assert captured.err.count("\n") == 1
 
 
-def test_arrange_reports_missing_kwin_method(monkeypatch, capsys):
+def test_arrange_calls_reapply_placement(monkeypatch):
     from rice import cli
 
-    assert cli.main(["arrange"]) == 1
-    captured = capsys.readouterr()
-    assert "rice: " in captured.err
-    assert "KWin" in captured.err
-    assert "Traceback" not in captured.err
+    calls = []
+    monkeypatch.setattr(
+        cli.subprocess, "run", lambda *args, **kwargs: calls.append(args)
+    )
+
+    assert cli.run_arrange(None) == 0
+    assert calls == [
+        (
+            [
+                "gdbus",
+                "call",
+                "--session",
+                "--dest",
+                "org.rice.Rice",
+                "--object-path",
+                "/Rice",
+                "--method",
+                "org.rice.Rice.ReapplyPlacement",
+            ],
+        )
+    ]
+
+
+def test_arrange_reload_layout_uses_kwin_scripting():
+    from rice import arrange
+
+    calls = []
+
+    class FakeScript:
+        def run(self):
+            calls.append("run")
+
+        def stop(self):
+            calls.append("stop")
+
+    class FakeScripting:
+        def loadScript(self, path, name):
+            calls.append(("load", path, name))
+            return 7
+
+        def unloadScript(self, name):
+            calls.append(("unload", name))
+
+    fake_scripting = FakeScripting()
+    fake_script = FakeScript()
+
+    class FakeBus:
+        def get_object(self, service, path):
+            calls.append(("object", service, path))
+            return object()
+
+    def make_interface(obj, iface):
+        if iface == arrange.SCRIPT_IFACE:
+            return fake_script
+        return fake_scripting
+
+    fake_dbus = type(
+        "dbus",
+        (),
+        {
+            "SessionBus": lambda: FakeBus(),
+            "Interface": make_interface,
+        },
+    )
+
+    arrange.reload_layout(
+        script_path="/tmp/arrange.js", bus=FakeBus(), dbus_mod=fake_dbus
+    )
+
+    assert calls == [
+        ("object", "org.kde.KWin", "/Scripting"),
+        ("load", "/tmp/arrange.js", "rice-arrange"),
+        ("object", "org.kde.KWin", "/Scripting/Script7"),
+        "run",
+        "stop",
+        ("unload", "rice-arrange"),
+    ]
+
+
+def test_arrange_script_path_is_xdg_scoped(tmp_path, monkeypatch):
+    from rice import arrange
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    path = arrange.arrange_script_path()
+    assert path == tmp_path / "data" / "kwin" / "scripts" / "rice-placement" / "arrange.js"
+
+
+def test_shortcuts_disable_conflicts_reports_cleared(monkeypatch, capsys):
+    from rice import cli, shortcuts
+
+    monkeypatch.setattr(
+        shortcuts,
+        "disable_conflicts",
+        lambda: ["kwin:Window Quick Tile Left", "kwin:Window Quick Tile Right"],
+    )
+
+    assert cli.main(["shortcuts", "disable-conflicts"]) == 0
+
+    out = capsys.readouterr().out
+    assert "disabled kwin:Window Quick Tile Left" in out
+    assert "disabled kwin:Window Quick Tile Right" in out
+
+
+def test_shortcuts_disable_conflicts_reports_none(monkeypatch, capsys):
+    from rice import cli, shortcuts
+
+    monkeypatch.setattr(shortcuts, "disable_conflicts", lambda: [])
+
+    assert cli.main(["shortcuts", "disable-conflicts"]) == 0
+    assert "no conflicting" in capsys.readouterr().out
+
+
+def test_disable_conflicts_clears_only_known_actions():
+    from rice import shortcuts
+
+    calls = []
+
+    class FakeIface:
+        def allActionsForComponent(self, components):
+            component = components[0]
+            actions = {
+                "kwin": [
+                    ["kwin", "Window Quick Tile Left", "Ctrl+Alt+Left"],
+                    ["kwin", "Unrelated Action", "Ctrl+Alt+X"],
+                ],
+                "plasmashell": [
+                    ["plasmashell", "manage activities", "Meta+Tab"],
+                    ["plasmashell", "unrelated shell action", "Ctrl+X"],
+                ],
+            }
+            return actions[component]
+
+        def setForeignShortcut(self, ids, empty):
+            calls.append((ids, empty))
+
+    cleared = shortcuts.disable_conflicts(
+        iface=FakeIface(), empty=[], attempts=1, sleep=lambda seconds: None
+    )
+
+    assert cleared == [
+        "kwin:Window Quick Tile Left",
+        "plasmashell:manage activities",
+    ]
+    assert calls == [
+        (["kwin", "Window Quick Tile Left", "Ctrl+Alt+Left"], []),
+        (["plasmashell", "manage activities", "Meta+Tab"], []),
+    ]
 
 
 def test_doctor_reports_problems(monkeypatch, capsys):

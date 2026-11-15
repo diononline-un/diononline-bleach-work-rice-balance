@@ -13,6 +13,7 @@ from pathlib import Path
 from . import __version__
 from .config import load_config, validate_config
 from .generate import (
+    generate_arrange,
     generate_kwin,
     generate_noctalia,
     generate_runtime,
@@ -31,6 +32,7 @@ RELOAD_COMMANDS = (
         "--now",
         "rice-daemon.service",
         "rice-startup.service",
+        "rice-shortcuts.service",
     ),
     (
         "kwriteconfig6",
@@ -112,6 +114,7 @@ def _generated(config: dict) -> dict[Path, str]:
     runtime_path = state_home() / "rice/runtime.json"
     generated = {
         kwin_dir / "contents/code/main.js": generate_kwin(config),
+        kwin_dir / "arrange.js": generate_arrange(config),
         kwin_dir / "metadata.json": _metadata(),
         noir_dir / "config.toml": generate_noctalia(config),
         runtime_path: json.dumps(generate_runtime(config), indent=2),

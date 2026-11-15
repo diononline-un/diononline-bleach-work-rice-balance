@@ -21,6 +21,19 @@ def _default_launcher(command: list[str]):
     )
 
 
+def launch(command: list[str]) -> None:
+    """Launch one command detached from the calling process."""
+    _default_launcher(command)
+
+
+def terminal_command(runtime: dict) -> list[str] | None:
+    """Return the configured terminal argv, or None when no terminal exists."""
+    app = runtime.get("apps", {}).get("terminal")
+    if isinstance(app, dict) and app.get("command"):
+        return list(app["command"])
+    return None
+
+
 def _commands(runtime: dict, app_ids: list[str]) -> list[list[str]]:
     apps = runtime.get("apps", {})
     commands = []

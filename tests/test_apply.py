@@ -97,6 +97,7 @@ def test_apply_runs_reload_and_enable_commands(tmp_path, monkeypatch):
         "--now",
         "rice-daemon.service",
         "rice-startup.service",
+        "rice-shortcuts.service",
     ) in calls
     assert (
         "kwriteconfig6",

@@ -20,6 +20,7 @@ SYSTEMD_UNITS = {
     "rice-theme-boot.service",
     "rice-theme-hourly.service",
     "rice-theme-hourly.timer",
+    "rice-shortcuts.service",
 }
 
 

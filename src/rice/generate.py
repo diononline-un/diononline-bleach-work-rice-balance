@@ -5,6 +5,9 @@ from pathlib import Path
 import tomli_w
 
 TEMPLATE = Path(__file__).resolve().parents[2] / "templates" / "kwin" / "main.js.in"
+ARRANGE_TEMPLATE = (
+    Path(__file__).resolve().parents[2] / "templates" / "kwin" / "arrange.js.in"
+)
 NOCTALIA_BASE = (
     Path(__file__).resolve().parents[2] / "defaults" / "noctalia" / "config.toml"
 )
@@ -14,6 +17,7 @@ SYSTEMD_UNITS = {
     "rice-theme-boot.service": "rice theme boot",
     "rice-theme-hourly.service": "rice theme hourly",
     "rice-theme-hourly.timer": "",
+    "rice-shortcuts.service": "rice shortcuts disable-conflicts",
 }
 
 
@@ -65,9 +69,28 @@ def kwin_rules(config: dict) -> list[dict]:
     return [rule for _, rule in ordered]
 
 
+def output_roles(config: dict) -> list[dict]:
+    """Map configured output roles to connectors for the KWin shortcut block."""
+    return [
+        {"role": output["role"], "connector": output["connector"]}
+        for output in config.get("output", [])
+        if output.get("role") and output.get("connector")
+    ]
+
+
 def generate_kwin(config: dict) -> str:
     rules = kwin_rules(config)
-    return TEMPLATE.read_text(encoding="utf-8").replace(
+    return (
+        TEMPLATE.read_text(encoding="utf-8")
+        .replace("__RULES__", json.dumps(rules, indent=2))
+        .replace("__OUTPUTS__", json.dumps(output_roles(config), indent=2))
+    )
+
+
+def generate_arrange(config: dict) -> str:
+    """Generate the one-shot layout reapply script loaded by ``rice arrange``."""
+    rules = kwin_rules(config)
+    return ARRANGE_TEMPLATE.read_text(encoding="utf-8").replace(
         "__RULES__", json.dumps(rules, indent=2)
     )
 
