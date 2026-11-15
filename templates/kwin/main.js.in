@@ -1,4 +1,5 @@
 const RULES = __RULES__;
+const OUTPUT_ROLES = __OUTPUTS__;
 
 const placedWindows = [];
 const placedActivities = [];
@@ -155,3 +156,178 @@ workspace.currentActivityChanged.connect(function () {
 
 applyAll();
 updateFullscreen();
+
+// --- Shortcut dispatcher -------------------------------------------------
+// Shortcut bindings resolve output connectors from OUTPUT_ROLES at runtime so
+// the generated script never contains a hard-coded connector name. Daemon
+// actions are forwarded to the org.rice.Rice session service.
+
+function connectorForRole(role) {
+    for (let i = 0; i < OUTPUT_ROLES.length; i++) {
+        if (OUTPUT_ROLES[i].role === role) return OUTPUT_ROLES[i].connector;
+    }
+    return null;
+}
+
+function activeWindow() {
+    return workspace.activeWindow;
+}
+
+function toggleMaximizeActive() {
+    const win = activeWindow();
+    if (!win) return;
+    const both = win.maximizeMode === 3;
+    win.setMaximize(!both, !both);
+}
+
+function minimizeActive() {
+    const win = activeWindow();
+    if (win) win.minimized = true;
+}
+
+function closeActive() {
+    const win = activeWindow();
+    if (win) win.close();
+}
+
+function moveActiveToOutput(connector) {
+    const win = activeWindow();
+    const output = connector ? outputByName(connector) : null;
+    if (win && output) {
+        workspace.sendClientToScreen(win, output);
+    }
+}
+
+function moveActiveToRole(role) {
+    moveActiveToOutput(connectorForRole(role));
+}
+
+function cycleWindowsOnOutput(step) {
+    const win = activeWindow();
+    if (!win || !win.output) return;
+
+    const outputName = win.output.name;
+    const activity = workspace.currentActivity;
+    const windows = [];
+    const all = workspace.windowList();
+    for (let i = 0; i < all.length; i++) {
+        const candidate = all[i];
+        if (!candidate.normalWindow || !candidate.output || candidate.output.name !== outputName) {
+            continue;
+        }
+        const activities = candidate.activities || [];
+        if (activities.length > 0 && activities.indexOf(activity) < 0) {
+            continue;
+        }
+        windows.push(candidate);
+    }
+    if (windows.length < 2) return;
+
+    let index = windows.indexOf(win);
+    if (index < 0) index = 0;
+    index = (index + step + windows.length) % windows.length;
+    const target = windows[index];
+    if (target.minimized) target.minimized = false;
+    workspace.activeWindow = target;
+}
+
+function tileActiveWindow(side) {
+    const win = activeWindow();
+    if (!win || !win.output) return;
+    const zone = side === "left"
+        ? { x: 0, y: 0, w: 0.5, h: 1, gap_px: 0 }
+        : { x: 0.5, y: 0, w: 0.5, h: 1, gap_px: 0 };
+    place(win, { output: win.output.name, zone: zone, mode: "normal" });
+}
+
+function callRice(method) {
+    callDBus("org.rice.Rice", "/Rice", "org.rice.Rice", method);
+}
+
+function callRiceArg(method, arg) {
+    callDBus("org.rice.Rice", "/Rice", "org.rice.Rice", method, arg);
+}
+
+registerShortcut("Rice: Maximize active window", "Rice: Maximize active window", "Meta+M", function() {
+    toggleMaximizeActive();
+});
+
+registerShortcut("Rice: Minimize active window", "Rice: Minimize active window", "Meta+N", function() {
+    minimizeActive();
+});
+
+registerShortcut("Rice: Close active window", "Rice: Close active window", "Meta+Q", function() {
+    closeActive();
+});
+
+registerShortcut("Rice: Tile active left", "Rice: Tile active left", "Meta+H", function() {
+    tileActiveWindow("left");
+});
+
+registerShortcut("Rice: Tile active right", "Rice: Tile active right", "Meta+J", function() {
+    tileActiveWindow("right");
+});
+
+registerShortcut("Rice: Next window on this display", "Rice: Next window on this display", "Meta+Right", function() {
+    cycleWindowsOnOutput(1);
+});
+
+registerShortcut("Rice: Previous window on this display", "Rice: Previous window on this display", "Meta+Left", function() {
+    cycleWindowsOnOutput(-1);
+});
+
+registerShortcut("Rice: Move window to main", "Rice: Move window to main", "Meta+1", function() {
+    moveActiveToRole("main");
+});
+
+registerShortcut("Rice: Move window to side", "Rice: Move window to side", "Meta+2", function() {
+    moveActiveToRole("side");
+});
+
+registerShortcut("Rice: Move window to portrait", "Rice: Move window to portrait", "Meta+3", function() {
+    moveActiveToRole("portrait");
+});
+
+registerShortcut("Rice: Open terminal", "Rice: Open terminal", "Meta+Return", function() {
+    callRice("OpenTerminal");
+});
+
+registerShortcut("Rice: Open animated terminal", "Rice: Open animated terminal", "Meta+Shift+Return", function() {
+    callRice("OpenAnimatedTerminal");
+});
+
+registerShortcut("Rice: Cheat sheet", "Rice: Cheat sheet", "Ctrl+Alt+H", function() {
+    callRice("ToggleCheatSheet");
+});
+
+registerShortcut("Rice: Next theme", "Rice: Next theme", "Ctrl+Alt+Shift+Right", function() {
+    callRice("ThemeNext");
+});
+
+registerShortcut("Rice: Previous theme", "Rice: Previous theme", "Ctrl+Alt+Shift+Left", function() {
+    callRice("ThemePrevious");
+});
+
+registerShortcut("Rice: Work activity", "Rice: Work activity", "Ctrl+Alt+1", function() {
+    callRiceArg("SwitchActivity", "work");
+});
+
+registerShortcut("Rice: Private activity", "Rice: Private activity", "Ctrl+Alt+2", function() {
+    callRiceArg("SwitchActivity", "private");
+});
+
+registerShortcut("Rice: Quickstart work", "Rice: Quickstart work", "Ctrl+Alt+Shift+1", function() {
+    callRice("QuickstartWork");
+});
+
+registerShortcut("Rice: Quickstart private", "Rice: Quickstart private", "Ctrl+Alt+Shift+2", function() {
+    callRice("QuickstartPrivate");
+});
+
+registerShortcut("Rice: Quickstart current activity", "Rice: Quickstart current activity", "Ctrl+Alt+Shift+Space", function() {
+    callRice("QuickstartCurrent");
+});
+
+registerShortcut("Rice: Reapply window layout", "Rice: Reapply window layout", "Ctrl+Alt+R", function() {
+    callRice("ReapplyPlacement");
+});

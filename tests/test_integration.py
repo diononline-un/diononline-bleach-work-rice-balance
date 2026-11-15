@@ -20,6 +20,7 @@ SYSTEMD_UNITS = {
     "rice-theme-boot.service",
     "rice-theme-hourly.service",
     "rice-theme-hourly.timer",
+    "rice-shortcuts.service",
 }
 
 
@@ -45,7 +46,7 @@ def test_dry_run_lists_generated_paths(tmp_path, monkeypatch):
     assert len(paths) == len(set(paths))
     assert all(str(tmp_path) in path for path in paths)
     names = {path.name for path in result.changed}
-    assert {"main.js", "metadata.json", "rice.toml", "runtime.json"} <= names
+    assert {"main.js", "metadata.json", "config.toml", "runtime.json"} <= names
     assert SYSTEMD_UNITS <= names
     assert not data_dir.exists()
     assert not config_dir.exists()
@@ -68,7 +69,7 @@ def test_apply_writes_every_planned_artifact(tmp_path, monkeypatch):
     assert "const RULES" in (kwin / "contents/code/main.js").read_text(encoding="utf-8")
 
     noctalia = tomllib.loads(
-        (config_dir / "noctalia/rice.toml").read_text(encoding="utf-8")
+        (config_dir / "noctalia/config.toml").read_text(encoding="utf-8")
     )
     assert noctalia["desktop_widgets"]["enabled"] is True
 

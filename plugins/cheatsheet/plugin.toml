@@ -1,0 +1,17 @@
+id = "rice/cheatsheet"
+name = "Rice Cheatsheet"
+version = "1.0.0"
+plugin_api = 51
+author = "rice"
+license = "MIT"
+description = "Rice shortcut reference."
+tags = ["utility", "shortcuts"]
+icon = "keyboard"
+
+[[panel]]
+id = "panel"
+entry = "panel.luau"
+width = 830
+height = 650
+placement = "attached"
+position = "auto"

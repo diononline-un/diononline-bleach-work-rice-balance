@@ -33,7 +33,11 @@ def test_apply_writes_generated_files_and_backs_up(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(home / ".local/state"))
     result = apply_config(config, runner=lambda *args, **kwargs: None)
     assert any("main.js" in str(path) for path in result.changed)
-    assert (home / ".config/noctalia/rice.toml").exists()
+    merged = home / ".config/noctalia/config.toml"
+    assert merged.exists()
+    assert merged.read_text(encoding="utf-8").startswith(
+        "# Noctalia base configuration installed by rice."
+    )
 
 
 def test_apply_writes_kwin_metadata_runtime_and_units(tmp_path, monkeypatch):
@@ -67,7 +71,7 @@ def test_dry_run_writes_nothing(tmp_path, monkeypatch):
 
 def test_apply_backs_up_existing_files(tmp_path, monkeypatch):
     config, home = _config(tmp_path, monkeypatch)
-    target = home / ".config/noctalia/rice.toml"
+    target = home / ".config/noctalia/config.toml"
     target.parent.mkdir(parents=True)
     target.write_text("old noctalia settings\n")
 
@@ -75,7 +79,7 @@ def test_apply_backs_up_existing_files(tmp_path, monkeypatch):
 
     backups = list((home / ".local/state/rice/backups").iterdir())
     assert len(backups) == 1
-    assert (backups[0] / "rice.toml").read_text() == "old noctalia settings\n"
+    assert (backups[0] / "config.toml").read_text() == "old noctalia settings\n"
     assert target.read_text() != "old noctalia settings\n"
     assert not list(home.rglob("*.tmp"))
 
@@ -97,6 +101,7 @@ def test_apply_runs_reload_and_enable_commands(tmp_path, monkeypatch):
         "--now",
         "rice-daemon.service",
         "rice-startup.service",
+        "rice-shortcuts.service",
     ) in calls
     assert (
         "kwriteconfig6",

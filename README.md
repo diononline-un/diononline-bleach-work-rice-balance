@@ -6,16 +6,21 @@ activities, startup sets, and wallpapers; the core backend generates every KWin,
 Noctalia, systemd, and runtime file from that document.
 
 The project is split into three plans. This repository contains the core
-backend from plan one. The Noctalia shell plugin port and the local web
-configurator are future work and are not implemented here.
+backend from plan one and the Noctalia shell port from plan two. The Noctalia
+bar, four plugins, generated shortcuts, and bar actions are implemented; live
+verification on a target desktop is pending. The local web configurator is
+plan three and is not implemented here.
 
 ## What It Does
 
 - Separate Work and Private application sets with one shared zone layout.
 - Configurable output roles, zone geometry, and placement rules.
 - Triple-monitor, ultrawide, and single-split layout presets.
-- Generated KWin placement script, Noctalia include, systemd units, and runtime
-  configuration.
+- Generated KWin placement script, merged Noctalia configuration, systemd
+  units, and runtime configuration.
+- A Noctalia bar with rice actions, a theme selector, a Work/Private indicator,
+  and a shortcut cheatsheet, plus an optional media plugin.
+- Generated KWin shortcuts that resolve window-move targets by output role.
 - Startup (login) and autostart (first activity entry) as separate concepts.
 - Wallpaper rotation from a user-supplied directory with fullscreen and idle
   guards.
@@ -69,6 +74,10 @@ rice apply
 | `rice theme next` | Apply the next wallpaper in sorted order. |
 | `rice theme previous` | Apply the previous wallpaper. |
 | `rice theme random` | Apply a random wallpaper from the configured directory. |
+| `rice cheatsheet` | Toggle the shortcut cheatsheet panel. |
+| `rice quickstart` | Launch the app set that belongs to the current activity. |
+| `rice arrange` | Reapply the window layout through the daemon and KWin. |
+| `rice shortcuts disable-conflicts` | Clear KDE shortcuts that collide with the rice bindings. |
 | `rice daemon` | Run the user D-Bus daemon in the foreground. |
 
 ## Documentation
@@ -79,6 +88,8 @@ rice apply
 - [Placement](docs/PLACEMENT.md): outputs, zones, presets, and ultrawide layout.
 - [Startup](docs/STARTUP.md): login startup versus per-activity autostart.
 - [Theming](docs/THEMING.md): wallpaper rotation, guards, and generated units.
+- [Noctalia](docs/NOCTALIA.md): merged config, bar, plugins, and media setup.
+- [Shortcuts](docs/SHORTCUTS.md): bindings, output roles, and conflict cleanup.
 - [Assets](docs/ASSETS.md): metadata-only wallpaper policy and manifest format.
 - [Troubleshooting](docs/TROUBLESHOOTING.md): common display, Noctalia, and unit issues.
 
@@ -92,8 +103,10 @@ rice apply
 ├── defaults/               canonical configuration and app catalog
 │   ├── rice.toml
 │   ├── apps.toml
+│   ├── noctalia/           base shell config and optional media JSON
 │   └── layouts/            triple, ultrawide, single-split presets
 ├── docs/                   published English documentation
+├── plugins/                themes, profile, cheatsheet, and media plugins
 ├── src/rice/               core Python backend
 ├── templates/              KWin, Noctalia, and systemd templates
 ├── assets/wallpapers/      metadata manifest only, no image files
@@ -114,16 +127,19 @@ directory you configure and never downloads or scrapes images. See
 
 ## Current Limitations
 
-- The Noctalia bar, plugins, keybindings, and the visual shell port are future
-  work. The core installs placement, generated configuration, and runtime
-  services only.
-- The local web configurator is future work. Edit `rice.toml` and run
-  `rice apply` in the current core.
+- The Noctalia bar, plugins, and shortcuts are generated and installed, but the
+  Luau runtime behavior still needs verification on a live Noctalia 5.5 or
+  newer session.
+- The optional media plugin expects your own compatible local media API; no
+  service is bundled.
+- The local web configurator is plan three and is not implemented. Edit
+  `rice.toml` and run `rice apply` in the current iteration.
 - Every output receives the same wallpaper. Per-output wallpaper sets are not
   implemented.
 - Animated or video wallpapers are not supported.
-- `rice apply` enables the daemon and startup units. The generated boot and
-  hourly theme units must be enabled manually if you want automatic rotation.
+- `rice apply` enables the daemon, startup, and shortcut units. The generated
+  boot and hourly theme units must be enabled manually if you want automatic
+  rotation.
 - The login screen and boot splash are not themed; changing them requires
   system-level authentication and is outside this plan.
 - Only Arch-based distributions are supported.

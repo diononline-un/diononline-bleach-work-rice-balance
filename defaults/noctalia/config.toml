@@ -1,0 +1,242 @@
+# Noctalia base configuration installed by rice.
+# `rice apply` merges generated desktop widgets into this file and writes it to
+# $XDG_CONFIG_HOME/noctalia/config.toml. Monitor sections stay empty so the
+# generated output list decides placement.
+
+[shell]
+setup_wizard_enabled = false
+polkit_agent = false
+font_family = "Fira Sans"
+corner_radius_scale = 1.1
+app_icon_colorize = true
+app_icon_color = "on_surface"
+
+[shell.mpris]
+blacklist = ["brave", "plasma-browser-integration", "chrome", "firefox", "spotify", "mpv", "vlc"]
+
+[shell.panel]
+transparency_mode = "solid"
+launcher_placement = "floating"
+launcher_position = "center"
+control_center_placement = "floating"
+control_center_position = "center_left"
+floating_offset = 0
+
+[control_center]
+width = 1000
+
+[theme]
+mode = "dark"
+shell_mode = "dark"
+source = "wallpaper"
+wallpaper_scheme = "m3-content"
+builtin = "Noctalia"
+
+[theme.templates]
+enable_builtin_templates = true
+builtin_ids = ["kcolorscheme", "gtk3", "gtk4", "qt", "alacritty", "kitty"]
+enable_community_templates = true
+community_ids = ["brave"]
+
+[wallpaper]
+enabled = true
+fill_mode = "crop"
+transition = ["fade"]
+transition_duration = 1200
+sync_transitions = true
+transition_on_startup = true
+
+[bar]
+order = ["main"]
+
+[bar.main]
+position = "top"
+enabled = true
+thickness = 40
+background_opacity = 0.0
+compositor_blur = false
+border = "outline_variant"
+border_width = 0.0
+shadow = false
+radius = 16
+margin_ends = 0
+margin_edge = 10
+padding = 12
+widget_spacing = 14
+reserve_space = true
+layer = "top"
+auto_hide = false
+capsule = true
+capsule_fill = "surface_container_high"
+capsule_opacity = 0.68
+capsule_border = "primary"
+capsule_border_width = 1.0
+capsule_thickness = 0.84
+capsule_padding = 10
+capsule_foreground = "on_surface"
+color = "on_surface"
+scale = 0.95
+start = ["launcher", "cheatsheet", "themes", "group:quick"]
+center = []
+end = ["group:stats", "group:sys", "group:bg"]
+
+[[bar.main.capsule_group]]
+id = "quick"
+members = ["profile", "quickstart", "layout"]
+fill = "surface_container_high"
+foreground = "on_surface"
+opacity = 0.9
+border = "primary"
+border_width = 1.0
+padding = 8.0
+radius = 14.0
+widget_spacing = 6
+enabled = true
+
+[[bar.main.capsule_group]]
+id = "stats"
+members = ["cpu-top", "ram-top", "gpu-top"]
+fill = "surface_container_high"
+foreground = "primary"
+opacity = 0.68
+border = "primary"
+border_width = 1.0
+padding = 8.0
+radius = 14.0
+widget_spacing = 10
+enabled = true
+
+[[bar.main.capsule_group]]
+id = "sys"
+members = ["network", "bluetooth", "volume", "notifications", "control-center"]
+fill = "surface_container_high"
+foreground = "on_surface"
+opacity = 0.68
+border = "primary"
+border_width = 1.0
+padding = 8.0
+radius = 14.0
+widget_spacing = 10
+enabled = true
+
+[[bar.main.capsule_group]]
+id = "bg"
+members = ["tray"]
+fill = "surface_container_high"
+foreground = "on_surface"
+opacity = 0.68
+border = "primary"
+border_width = 1.0
+padding = 8.0
+radius = 14.0
+widget_spacing = 6
+enabled = true
+
+[widget.cpu-top]
+type = "sysmon"
+stat = "cpu_usage"
+visualization = "none"
+label_min_width = 32
+
+[widget.ram-top]
+type = "sysmon"
+stat = "ram_used"
+visualization = "none"
+label_min_width = 40
+
+[widget.gpu-top]
+type = "sysmon"
+stat = "gpu_usage"
+visualization = "none"
+label_min_width = 32
+
+[widget.cpu]
+type = "sysmon"
+stat = "cpu_usage"
+visualization = "gauge"
+label_min_width = 34
+
+[widget.ram]
+type = "sysmon"
+stat = "ram_used"
+visualization = "gauge"
+label_min_width = 40
+
+[widget.gpu]
+type = "sysmon"
+stat = "gpu_usage"
+visualization = "gauge"
+label_min_width = 34
+
+[widget.gputemp]
+type = "sysmon"
+stat = "gpu_temp"
+visualization = "none"
+label_min_width = 38
+
+[widget.network]
+show_label = false
+
+[widget.cheatsheet]
+type = "custom_button"
+glyph = "keyboard"
+tooltip = "Shortcuts"
+
+[widget.cheatsheet.actions]
+left = "exec rice cheatsheet"
+
+[widget.themes]
+type = "custom_button"
+glyph = "palette"
+tooltip = "Wallpapers and palette"
+
+[widget.themes.actions]
+left = "exec rice theme panel"
+
+[widget.profile]
+type = "rice/profile:bar"
+
+[widget.work]
+type = "custom_button"
+glyph = "briefcase"
+label = "Work"
+tooltip = "Switch to Work"
+
+[widget.work.actions]
+left = "exec rice activity work"
+
+[widget.private]
+type = "custom_button"
+glyph = "home"
+label = "Private"
+tooltip = "Switch to Private"
+
+[widget.private.actions]
+left = "exec rice activity private"
+
+[widget.quickstart]
+type = "custom_button"
+glyph = "rocket"
+label = "Start"
+tooltip = "Start missing apps in the current activity"
+
+[widget.quickstart.actions]
+left = "exec rice quickstart"
+
+[widget.layout]
+type = "custom_button"
+glyph = "layout-grid"
+label = "Layout"
+tooltip = "Reapply the default window layout"
+
+[widget.layout.actions]
+left = "exec rice arrange"
+
+[desktop_widgets]
+enabled = true
+schema_version = 2
+widget_order = []
+
+[accessibility]
+ui_scale = 1.0
+high_contrast = false

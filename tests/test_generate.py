@@ -6,11 +6,13 @@ import pytest
 
 from rice.generate import (
     _widget_anchor,
+    generate_arrange,
     generate_kwin,
     generate_noctalia,
     generate_runtime,
     generate_systemd,
     kwin_rules,
+    output_roles,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,6 +107,12 @@ def test_mode_is_passed_through(mode):
     assert kwin_rules(config)[0]["mode"] == mode
 
 
+def test_noctalia_merges_base_bar_and_widgets():
+    data = tomllib.loads(generate_noctalia(CONFIG))
+    assert data["bar"]["main"]["position"] == "top"
+    assert data["desktop_widgets"]["enabled"] is True
+
+
 def test_noctalia_output_is_valid_toml():
     data = tomllib.loads(generate_noctalia(CONFIG))
     assert "desktop_widgets" in data
@@ -169,3 +177,108 @@ def test_hourly_timer_triggers_hourly_service():
     assert "OnCalendar=hourly" in timer
     assert "Unit=rice-theme-hourly.service" in timer
     assert "@RICE_COMMAND@" not in "".join(units.values())
+
+
+ROLE_CONFIG = {
+    "output": [
+        {"id": "main", "role": "main", "connector": "DP-1", "primary": True},
+        {"id": "side", "role": "side", "connector": "DP-2"},
+        {"id": "portrait", "role": "portrait", "connector": "HDMI-A-1"},
+    ],
+    "zone": [{"id": "center-left", "output": "main", "kind": "app",
+               "x": 0.0, "y": 0.0, "w": 0.5, "h": 1.0, "gap_px": 8}],
+    "app": [{"id": "browser", "command": ["firefox"], "wm_class": "firefox"}],
+    "placement": [{"app": "browser", "activity": "private", "zone": "center-left", "mode": "normal"}],
+    "activities": {"private": {"name": "Private", "kde_id": "private-uuid"},
+                   "work": {"name": "Work", "kde_id": "work-uuid"}},
+    "startup": {"always": [], "private": ["browser"]},
+}
+
+
+def test_output_roles_map_role_to_connector():
+    roles = output_roles(ROLE_CONFIG)
+    assert roles == [
+        {"role": "main", "connector": "DP-1"},
+        {"role": "side", "connector": "DP-2"},
+        {"role": "portrait", "connector": "HDMI-A-1"},
+    ]
+
+
+def test_generated_kwin_has_configurable_shortcuts():
+    js = generate_kwin(ROLE_CONFIG)
+    assert "registerShortcut" in js
+    assert "org.rice.Rice" in js
+    assert "OUTPUT_ROLES" in js
+
+
+def test_generated_kwin_resolves_move_targets_by_role():
+    js = generate_kwin(ROLE_CONFIG)
+    # The dispatcher looks connectors up from OUTPUT_ROLES at runtime.
+    assert "connectorForRole" in js
+    assert 'moveActiveToRole("main")' in js
+    assert 'moveActiveToRole("side")' in js
+    assert 'moveActiveToRole("portrait")' in js
+    assert '"role": "main"' in js
+
+
+def test_generated_kwin_registers_required_shortcuts():
+    js = generate_kwin(ROLE_CONFIG)
+    for title in (
+        "Maximize active window",
+        "Minimize active window",
+        "Close active window",
+        "Open terminal",
+        "Tile active left",
+        "Tile active right",
+        "Next window on this display",
+        "Previous window on this display",
+        "Cheat sheet",
+        "Next theme",
+        "Previous theme",
+        "Work activity",
+        "Private activity",
+        "Reapply window layout",
+    ):
+        assert title in js
+
+
+def test_generated_kwin_calls_only_rice_daemon():
+    js = generate_kwin(ROLE_CONFIG)
+    assert "org.rice.Rice" in js
+    assert "org.dion.Rice" not in js
+    # Daemon method names used by the shortcut block.
+    for method in (
+        "OpenTerminal",
+        "OpenAnimatedTerminal",
+        "ToggleCheatSheet",
+        "ThemeNext",
+        "ThemePrevious",
+        "SwitchActivity",
+        "ReapplyPlacement",
+    ):
+        assert method in js
+
+
+def test_kwin_template_has_no_hardcoded_connectors():
+    template = (ROOT / "templates" / "kwin" / "main.js.in").read_text(encoding="utf-8")
+    for connector in ("DP-1", "DP-2", "HDMI-A-1", "HDMI-1", "HDMI-2", "eDP-1", "DP-3"):
+        assert connector not in template, f"hard-coded connector {connector} in template"
+    assert "__OUTPUTS__" in template
+
+
+def test_generate_arrange_produces_reapply_script():
+    js = generate_arrange(ROLE_CONFIG)
+    assert js.startswith("// Generated one-shot")
+    assert "const RULES =" in js
+    assert "__RULES__" not in js
+    assert "workspace.windowList()" in js
+    assert "rice-arrange: done" in js
+
+
+def test_systemd_units_include_shortcuts_service():
+    units = generate_systemd(CONFIG, ROOT)
+    assert Path("rice-shortcuts.service") in units
+    service = units[Path("rice-shortcuts.service")]
+    assert "rice shortcuts disable-conflicts" in service
+    assert "%h/.local/bin/" in service
+    assert "/home/" not in service

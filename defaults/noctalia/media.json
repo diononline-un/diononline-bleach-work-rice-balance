@@ -1,0 +1,4 @@
+{
+  "_comment": "Opt-in configuration for the optional rice/media plugin. This plugin stays disabled until you add it to your Noctalia bar or desktop widgets. The media API is not bundled: run your own compatible service (localhost is fine) and point api_url at it. Copy this file to $XDG_CONFIG_HOME/noctalia/media.json and adjust api_url if your service listens elsewhere.",
+  "api_url": "http://127.0.0.1:26538/api/v1"
+}

@@ -1,0 +1,13 @@
+id = "rice/profile"
+name = "Rice Profile"
+version = "1.0.0"
+plugin_api = 51
+author = "rice"
+license = "MIT"
+description = "Work/Private switch with an active-activity color mark."
+tags = ["bar", "activity", "shortcuts"]
+icon = "user"
+
+[[widget]]
+id = "bar"
+entry = "widget.luau"

@@ -40,6 +40,14 @@ The Plasma shell is missing from `PATH` or the session is not a Plasma session.
 Confirm the Plasma 6 packages and start the correct session at the display
 manager.
 
+### The installer refuses a user-owned plugin directory
+
+Plugin directory names are generic (`themes`, `profile`, `cheatsheet`, `media`).
+If `$XDG_DATA_HOME/noctalia-plugins/<name>` already exists without a
+`.rice-plugin` file, install stops before copying and names that path. Move or
+rename your plugin, then rerun. Add `.rice-plugin` only when you intend rice to
+own and later remove that directory.
+
 ### Package installation fails midway
 
 The installer runs `pacman` and the AUR helper with `--needed --noconfirm`.
@@ -101,12 +109,47 @@ reports this explicitly.
 
 ### The generated widget anchors do not appear
 
-1. Confirm `$XDG_CONFIG_HOME/noctalia/rice.toml` exists after apply.
+1. Confirm `$XDG_CONFIG_HOME/noctalia/config.toml` exists after apply and starts
+   with the line `# Noctalia base configuration installed by rice.`.
 2. Run `noctalia msg config-reload`.
-3. Confirm each widget zone exists and that output `x`, `y`, `width`, and
+3. Confirm the file still contains the base `[bar]` table. `rice apply` merges
+   the base document with generated `desktop_widgets`; a missing base table
+   means the installed runtime tree is incomplete.
+4. Confirm each widget zone exists and that output `x`, `y`, `width`, and
    `height` values are real. The bare default configuration has no geometry, so
    anchors land at the output origin.
-4. Confirm the widget type name is valid for your Noctalia version.
+5. Confirm the widget type name is valid for your Noctalia version.
+
+### A rice plugin is missing from the shell
+
+1. Confirm the directory exists under `$XDG_DATA_HOME/noctalia-plugins/`, for
+   example `themes/plugin.toml` and `profile/widget.luau`.
+2. Reinstall or copy the plugin from the checkout when the directory is absent;
+   the installer only copies `plugins/` when that directory exists.
+3. Confirm the generated `$XDG_CONFIG_HOME/noctalia/config.toml` references the
+   plugin id, such as `rice/profile:bar` or `rice/themes:panel`.
+4. Reload Noctalia and check the journal for a Luau parse error. A plugin with
+   an invalid entry file is skipped by the shell.
+5. Verify the manifest declares `plugin_api = 51`; a different API version may
+   be rejected by another Noctalia release.
+
+See [Noctalia](NOCTALIA.md) for the plugin table and entry names.
+
+### The media plugin shows a configuration error
+
+The media plugin is opt-in and needs `$XDG_CONFIG_HOME/noctalia/media.json` with
+a reachable `api_url`. Copy the shipped defaults file from the installed tree
+and adjust the address:
+
+```bash
+mkdir -p "$XDG_CONFIG_HOME/noctalia"
+cp "${XDG_DATA_HOME:-$HOME/.local/share}/rice/defaults/noctalia/media.json" \
+   "$XDG_CONFIG_HOME/noctalia/media.json"
+```
+
+A missing file or malformed JSON produces a visible message but does not stop
+the rest of the shell. The plugin does not bundle a media service; point
+`api_url` at your own compatible local service.
 
 ### Noctalia reload fails
 
@@ -128,16 +171,17 @@ edited it by hand; do not edit it manually, because the next apply replaces it.
 ```bash
 systemctl --user status rice-daemon.service
 systemctl --user status rice-startup.service
+systemctl --user status rice-shortcuts.service
 systemctl --user list-unit-files 'rice-*'
 journalctl --user -u rice-daemon.service -b
 ```
 
-`rice apply` runs `daemon-reload` and enables the daemon and startup units. If a
-unit file was generated after the last daemon reload, run:
+`rice apply` runs `daemon-reload` and enables the daemon, startup, and shortcut
+units. If a unit file was generated after the last daemon reload, run:
 
 ```bash
 systemctl --user daemon-reload
-systemctl --user enable --now rice-daemon.service rice-startup.service
+systemctl --user enable --now rice-daemon.service rice-startup.service rice-shortcuts.service
 ```
 
 ### Theme rotation never runs
@@ -151,6 +195,23 @@ systemctl --user list-timers 'rice-*'
 
 Then check the service journal. Rotation also skips while a fullscreen window is
 active, the screen is locked, or the session reports idle. This is intentional.
+
+### A shortcut does nothing
+
+1. Confirm the rice KWin script is enabled:
+   `kwriteconfig6 --file kwinrc --group Plugins --key rice-placementEnabled true`
+   followed by `qdbus6 org.kde.KWin /KWin reconfigure`.
+2. For daemon-backed shortcuts, check
+   `systemctl --user status rice-daemon.service` and start it if needed.
+3. For `Meta+2` or `Meta+3`, confirm the workspace actually has a `side` or
+   `portrait` output. A missing role connector skips the move by design.
+4. For conflicts with a KDE default, run `rice shortcuts disable-conflicts` and
+   check `systemctl --user status rice-shortcuts.service`.
+5. Inspect the generated script at
+   `$XDG_DATA_HOME/kwin/scripts/rice-placement/contents/code/main.js` and confirm
+   it contains the `registerShortcut` block and the expected `OUTPUT_ROLES`.
+
+See [Shortcuts](SHORTCUTS.md) for the full binding table and role mapping.
 
 ### The daemon starts but D-Bus calls fail
 
@@ -251,9 +312,18 @@ file was updated.
 ### Uninstall left files behind
 
 Uninstall removes only known rice-owned paths. A unit whose name does not start
-with `rice-`, a KWin script in another directory, or a wrapper that does not
-contain the rice CLI marker is intentionally left alone. Backups and wallpapers
-are also kept. Remove those manually after confirming they are not needed.
+with `rice-`, a KWin script in another directory, a hand-written
+`$XDG_CONFIG_HOME/noctalia/config.toml` without the rice marker, or a wrapper
+that does not contain the rice CLI marker is intentionally left alone. Backups
+and wallpapers are also kept. A rice plugin directory under
+`$XDG_DATA_HOME/noctalia-plugins` is removed only when it contains
+`.rice-plugin`; the shared parent is removed only when it becomes empty, so an
+unmarked user plugin with the same name stays in place. Remove any other
+leftover manually after confirming it is not needed.
+
+Uninstall restores the oldest Noctalia backup that lacks the rice marker. If no
+such backup exists, it removes the generated file. A newer backup may contain a
+generated file; that is expected and is not restored.
 
 ## Tests
 
@@ -262,7 +332,9 @@ are also kept. Remove those manually after confirming they are not needed.
 The message names the file and line that matched a personal-data pattern. Remove
 the host name, endpoint, private address, or absolute user home path and use an
 XDG variable or `$HOME` instead. Do not add an exception for a real value; fix
-the value.
+the value. The scan covers Markdown, Python, TOML, shell, JavaScript, systemd
+templates, JSON, and Luau plugin sources, including `plugins/` and
+`defaults/noctalia/`.
 
 ### The asset test fails
 

@@ -1,0 +1,34 @@
+id = "rice/media"
+name = "Rice Media"
+version = "1.0.0"
+plugin_api = 51
+author = "rice"
+license = "MIT"
+description = "Optional YouTube Music cover, title, artist and transport controls. Requires your own compatible local media API; configure api_url in ~/.config/noctalia/media.json."
+tags = ["music", "media", "desktop", "optional"]
+icon = "music"
+
+[[service]]
+id = "service"
+entry = "service.luau"
+
+[[desktop_widget]]
+id = "desktop"
+entry = "desktop.luau"
+
+[[panel]]
+id = "player"
+entry = "player_panel.luau"
+width = 1000
+height = 460
+placement = "attached"
+position = "auto"
+
+[[panel]]
+id = "queue"
+entry = "queue_panel.luau"
+width = 430
+height = 560
+placement = "floating"
+position = "bottom_right"
+keyboard_focus = "on_demand"

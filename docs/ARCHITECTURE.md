@@ -15,11 +15,12 @@ files into XDG directories.
 | `rice.activities` | List, create, and switch KDE activities through `qdbus6`. |
 | `rice.apps` | Read the application catalog and resolve installer choices into stable app ids. |
 | `rice.layouts` | Pick a preset, build preset zones, and derive default placements. |
-| `rice.generate` | Render KWin rules, Noctalia include, runtime JSON, and systemd units. |
+| `rice.generate` | Render KWin rules and shortcuts, the merged Noctalia config, runtime JSON, and systemd units. |
 | `rice.apply` | Validate, back up, write, and reload generated artifacts. |
 | `rice.startup` | Launch login startup sets and per-activity autostart sets. |
 | `rice.theme` | Discover wallpapers, rotate them, and guard rotation. |
 | `rice.daemon` | Expose session actions over the user D-Bus. |
+| `rice.shortcuts` | Clear KDE global shortcuts that collide with the rice bindings. |
 | `rice.installer` | Preflight, package planning, runtime copy, initial config, uninstall. |
 | `rice.cli` | The `rice` command surface. |
 
@@ -35,8 +36,8 @@ rice.config.validate  ◄──  rice.apps.resolve_choices
         ▼
 $XDG_CONFIG_HOME/rice/rice.toml
         │
-        ├── rice.generate.generate_kwin      → main.js
-        ├── rice.generate.generate_noctalia  → noctalia/rice.toml
+        ├── rice.generate.generate_kwin      → main.js + shortcut block
+        ├── rice.generate.generate_noctalia  → noctalia/config.toml
         ├── rice.generate.generate_systemd   → systemd/user/rice-*.service
         └── rice.generate.generate_runtime   → state/rice/runtime.json
         │
@@ -44,7 +45,7 @@ $XDG_CONFIG_HOME/rice/rice.toml
 rice.apply: backup → atomic write → reload commands
         │
         ▼
-KWin script, Noctalia include, user units, runtime JSON
+KWin script, merged Noctalia config, user units, runtime JSON
 ```
 
 The installer is the only component that composes a new configuration from
@@ -57,11 +58,13 @@ an existing configuration.
 
 | Path | Producer | Purpose |
 | --- | --- | --- |
-| `$XDG_DATA_HOME/kwin/scripts/rice-placement/contents/code/main.js` | `generate_kwin` | KWin JavaScript that places matching windows in zones. |
+| `$XDG_DATA_HOME/kwin/scripts/rice-placement/contents/code/main.js` | `generate_kwin` | KWin JavaScript that places matching windows in zones and registers shortcut bindings. |
+| `$XDG_DATA_HOME/kwin/scripts/rice-placement/arrange.js` | `generate_arrange` | One-shot layout reapply script loaded by `rice arrange`. |
 | `$XDG_DATA_HOME/kwin/scripts/rice-placement/metadata.json` | `apply` | KWin script manifest declaring the JavaScript entry point. |
-| `$XDG_CONFIG_HOME/noctalia/rice.toml` | `generate_noctalia` | Noctalia desktop-widget anchors with `rice_` identifiers. |
+| `$XDG_CONFIG_HOME/noctalia/config.toml` | `generate_noctalia` | Merged Noctalia base and generated desktop-widget anchors with `rice_` identifiers. |
 | `$XDG_CONFIG_HOME/systemd/user/rice-daemon.service` | `generate_systemd` | User D-Bus daemon. |
 | `$XDG_CONFIG_HOME/systemd/user/rice-startup.service` | `generate_systemd` | One-shot login startup runner. |
+| `$XDG_CONFIG_HOME/systemd/user/rice-shortcuts.service` | `generate_systemd` | One-shot cleanup of colliding KDE shortcuts. |
 | `$XDG_CONFIG_HOME/systemd/user/rice-theme-boot.service` | `generate_systemd` | One-shot boot wallpaper selection. |
 | `$XDG_CONFIG_HOME/systemd/user/rice-theme-hourly.service` | `generate_systemd` | One-shot hourly rotation job. |
 | `$XDG_CONFIG_HOME/systemd/user/rice-theme-hourly.timer` | `generate_systemd` | Hourly timer for the rotation job. |
@@ -89,15 +92,15 @@ Reload order:
 
 ```text
 systemctl --user daemon-reload
-systemctl --user enable --now rice-daemon.service rice-startup.service
+systemctl --user enable --now rice-daemon.service rice-startup.service rice-shortcuts.service
 kwriteconfig6 --file kwinrc --group Plugins --key rice-placementEnabled true
 qdbus6 org.kde.KWin /KWin reconfigure
 noctalia msg config-reload
 ```
 
-Apply enables the daemon and startup units. The boot and hourly theme units are
-generated but not enabled; enable them manually when automatic rotation is
-wanted:
+Apply enables the daemon, startup, and shortcut units. The boot and hourly theme
+units are generated but not enabled; enable them manually when automatic
+rotation is wanted:
 
 ```bash
 systemctl --user enable --now rice-theme-boot.service rice-theme-hourly.timer
@@ -105,6 +108,39 @@ systemctl --user enable --now rice-theme-boot.service rice-theme-hourly.timer
 
 Reload failures are not fatal to the file write. Each command is attempted and
 the run continues.
+
+## Noctalia Merge
+
+Noctalia has no include mechanism, so `generate_noctalia` merges rather than
+points. It loads `defaults/noctalia/config.toml`, adds the generated
+`desktop_widgets` table, and returns one complete document. `apply` writes that
+document over `$XDG_CONFIG_HOME/noctalia/config.toml`.
+
+The generated file starts with `# Noctalia base configuration installed by
+rice.`. The oldest backup that lacks that marker is treated as the user's
+pre-rice file and restored by uninstall; a hand-written current file is left
+untouched. Existing generated files are backed up flat under
+`$XDG_STATE_HOME/rice/backups/<timestamp>/`, so the previous `config.toml` is
+easy to find.
+
+Plugins are not generated. `install_tree` copies each directory under
+`plugins/` to `$XDG_DATA_HOME/noctalia-plugins/<name>/`, where Noctalia reads
+manifests. The bar and the default desktop-widget list reference only plugin ids
+that exist in that tree.
+
+## Shortcut Model
+
+The generated KWin script contains a `RULES` array, an `OUTPUT_ROLES` array, and
+a block of `registerShortcut` calls. Window management runs in KWin directly;
+terminal, theme, activity, cheatsheet, quickstart, and arrange actions call
+`org.rice.Rice` on `/Rice`. Move bindings resolve a role (`main`, `side`,
+`portrait`) to a connector at runtime, so the template contains no connector
+name.
+
+The installer assigns roles by output identity, not by list index: the primary
+output is `main`, the first non-primary output is `side`, and the second is
+`portrait`. `rice.shortcuts` and `rice-shortcuts.service` clear the matching KDE
+defaults at login. See [Shortcuts](SHORTCUTS.md).
 
 ## Runtime JSON
 
@@ -160,6 +196,13 @@ Methods:
 | `FullscreenActive` | returns `b` | Whether any output currently reports fullscreen. |
 | `ThemeNext` | none | Apply the next wallpaper. |
 | `ThemePrevious` | none | Apply the previous wallpaper. |
+| `QuickstartWork` | none | Launch the Work autostart set. |
+| `QuickstartPrivate` | none | Launch the Private startup set. |
+| `QuickstartCurrent` | none | Launch the set for the active activity. |
+| `ToggleCheatSheet` | none | Toggle the cheatsheet panel. |
+| `ReapplyPlacement` | none | Load the generated arrange script through KWin. |
+| `OpenTerminal` | none | Launch the configured terminal. |
+| `OpenAnimatedTerminal` | none | Launch the configured terminal with the animation variant. |
 
 The daemon keeps fullscreen state in memory. It does not persist anything and
 does not write logs of its own; inspect it with the user journal.
@@ -182,14 +225,17 @@ once per login rather than once per machine boot.
 - A missing wallpaper directory is only an error for a theme command, not for
   apply.
 - A missing output connector skips placement for that output.
+- A missing role connector skips only that move shortcut.
 - A missing app command in runtime JSON fails the specific startup call.
 - A failing package command stops the install at that command; fix the package
   cause and rerun.
-- Uninstall removes only rice-owned paths and keeps backups.
+- Uninstall removes only rice-owned paths, keeps backups, restores the oldest
+  pre-rice Noctalia config when one exists, and leaves wallpapers untouched.
 
 ## Future Work
 
-The shell plugin port, custom bar, keybinding pack, and local web configurator
-are separate plans. They are expected to consume the same configuration and
-apply pipeline rather than introducing a second source of truth. The core
-pipeline is deliberately file based so those components can reuse it.
+The local web configurator (plan three) is the remaining component. It is
+expected to consume the same configuration and apply pipeline rather than
+introducing a second source of truth. The core pipeline is deliberately file
+based so the configurator can reuse it. Live verification of the Noctalia Luau
+plugins and the KWin bindings remains a release task.

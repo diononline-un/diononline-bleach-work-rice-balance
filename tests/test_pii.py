@@ -15,7 +15,7 @@ SKIP_PREFIXES = ("docs/superpowers", "assets/wallpapers")
 # This test itself contains the marker literals on purpose; fixture files build
 # their denylist markers by concatenation so they stay scannable.
 SKIP_NAMES = {"test_pii.py"}
-SCANNED_SUFFIXES = {".md", ".py", ".toml", ".sh", ".js", ".in"}
+SCANNED_SUFFIXES = {".md", ".py", ".toml", ".sh", ".js", ".in", ".luau", ".json"}
 MANIFEST = ROOT / "assets/wallpapers/manifest.toml"
 PROJECT_URL = "https://github.com/diononline-un/diononline-bleach-work-rice-balance"
 DOCUMENTATION = {
@@ -28,15 +28,18 @@ DOCUMENTATION = {
     "docs/THEMING.md",
     "docs/ASSETS.md",
     "docs/TROUBLESHOOTING.md",
+    "docs/NOCTALIA.md",
+    "docs/SHORTCUTS.md",
 }
 PLACEHOLDER_MARKERS = ("lorem ipsum", "todo", "tbd", "fixme")
 
 
 def _skip(path: Path) -> bool:
     relative = path.relative_to(ROOT).as_posix()
+    relative_parts = path.relative_to(ROOT).parts
     return (
         path.name in SKIP_NAMES
-        or any(part in SKIP_PARTS for part in path.parts)
+        or any(part in SKIP_PARTS for part in relative_parts)
         or any(relative.startswith(prefix) for prefix in SKIP_PREFIXES)
     )
 
@@ -52,6 +55,26 @@ def test_no_personal_data_in_committed_files():
             if any(pattern.search(line) for pattern in PATTERNS):
                 hits.append(f"{path.relative_to(ROOT)}:{number}")
     assert not hits, "personal data candidates: " + ", ".join(hits)
+
+
+def test_plugin_and_noctalia_sources_are_scanned():
+    plugin_files = sorted((ROOT / "plugins").rglob("*.luau"))
+    assert plugin_files, "no plugin sources found"
+    for path in plugin_files:
+        assert path.suffix in SCANNED_SUFFIXES
+        assert not _skip(path), f"plugin source skipped by the scan: {path}"
+        assert "plugins" in path.relative_to(ROOT).parts
+    for relative in ("defaults/noctalia/config.toml", "defaults/noctalia/media.json"):
+        path = ROOT / relative
+        assert path.is_file(), f"missing scanned source: {relative}"
+        assert not _skip(path), f"Noctalia source skipped by the scan: {relative}"
+        if path.suffix in SCANNED_SUFFIXES:
+            hits = [
+                line
+                for line in path.read_text(encoding="utf-8").splitlines()
+                if any(pattern.search(line) for pattern in PATTERNS)
+            ]
+            assert not hits, f"personal data candidates in {relative}: {hits}"
 
 
 def test_wallpaper_manifest_is_metadata_only():

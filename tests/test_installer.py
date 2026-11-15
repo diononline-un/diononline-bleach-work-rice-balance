@@ -4,7 +4,10 @@ from pathlib import Path
 import pytest
 
 from rice.config import validate_config
+from rice.generate import generate_kwin, output_roles
 from rice.installer import (
+    NOCTALIA_GENERATED_MARKER,
+    PLUGIN_MARKER,
     build_initial_config,
     install_packages,
     install_tree,
@@ -13,6 +16,8 @@ from rice.installer import (
     uninstall,
 )
 from rice.outputs import Output
+
+ROOT = Path(__file__).resolve().parents[1]
 
 CHOICES = {
     "work_browser": "firefox",
@@ -67,6 +72,76 @@ def _fake_outputs():
             primary=True,
         )
     ]
+
+
+def _triple_outputs_primary_second():
+    """Primary is not first in KScreen order; roles follow identity."""
+    return [
+        Output(
+            id="output-1",
+            connector="DP-1",
+            width=1920,
+            height=1080,
+            x=0,
+            y=0,
+            primary=False,
+        ),
+        Output(
+            id="main",
+            connector="DP-2",
+            width=3440,
+            height=1440,
+            x=1920,
+            y=0,
+            primary=True,
+        ),
+        Output(
+            id="output-3",
+            connector="HDMI-A-1",
+            width=1080,
+            height=1920,
+            x=5360,
+            y=0,
+            primary=False,
+        ),
+    ]
+
+
+def test_build_initial_config_assigns_roles_independent_of_output_order(monkeypatch):
+    monkeypatch.setattr("rice.outputs.detect_outputs", _triple_outputs_primary_second)
+    monkeypatch.setattr(
+        "rice.activities.list_activities",
+        lambda: {"Private": "private-id", "Work": "work-id"},
+    )
+
+    config = build_initial_config(CHOICES)
+
+    assert validate_config(config) == []
+    roles = {output["connector"]: output["role"] for output in config["output"]}
+    assert roles == {"DP-2": "main", "DP-1": "side", "HDMI-A-1": "portrait"}
+    # Stable ids and geometry survive role assignment.
+    by_connector = {output["connector"]: output for output in config["output"]}
+    assert by_connector["DP-2"]["id"] == "main"
+    assert by_connector["DP-1"]["id"] == "output-1"
+    assert by_connector["HDMI-A-1"]["id"] == "output-3"
+    assert by_connector["DP-1"]["x"] == 0
+    assert by_connector["DP-2"]["width"] == 3440
+    assert "secondary" not in {output["role"] for output in config["output"]}
+
+    # The generated KWin shortcut block resolves move targets from these roles.
+    assert output_roles(config) == [
+        {"role": "side", "connector": "DP-1"},
+        {"role": "main", "connector": "DP-2"},
+        {"role": "portrait", "connector": "HDMI-A-1"},
+    ]
+    js = generate_kwin(config)
+    for role, connector in (
+        ("main", "DP-2"),
+        ("side", "DP-1"),
+        ("portrait", "HDMI-A-1"),
+    ):
+        assert f'"role": "{role}"' in js
+        assert f'"connector": "{connector}"' in js
 
 
 def test_build_initial_config_matches_detected_hardware(monkeypatch):
@@ -185,6 +260,67 @@ def test_install_tree_copies_plugins_when_present(tmp_path: Path):
 
     copied = data_dir / "noctalia-plugins/example/plugin.toml"
     assert copied.is_file()
+    marker = data_dir / "noctalia-plugins/example" / PLUGIN_MARKER
+    assert marker.is_file()
+    assert "Installed by rice" in marker.read_text(encoding="utf-8")
+
+
+def test_install_tree_refuses_unmarked_existing_plugin_directory(tmp_path: Path):
+    repo = _make_repo(tmp_path / "repo", plugins=True)
+    data_dir = tmp_path / "share"
+    user_plugin = data_dir / "noctalia-plugins/example"
+    user_plugin.mkdir(parents=True)
+    user_file = user_plugin / "plugin.toml"
+    user_file.write_text("# my own plugin\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="user-owned plugin directory") as error:
+        install_tree(repo, data_dir, tmp_path / "bin")
+
+    assert str(user_plugin) in str(error.value)
+    assert user_file.read_text(encoding="utf-8") == "# my own plugin\n"
+    assert not (user_plugin / PLUGIN_MARKER).exists()
+    assert not (data_dir / "rice").exists()
+
+
+def test_real_repo_plugins_and_noctalia_base_are_copied(tmp_path: Path):
+    for name in ("themes", "profile", "cheatsheet", "media"):
+        assert (ROOT / "plugins" / name / "plugin.toml").is_file()
+    assert (ROOT / "defaults/noctalia/config.toml").is_file()
+    assert (ROOT / "defaults/noctalia/media.json").is_file()
+
+    data_dir = tmp_path / "share"
+    install_root = install_tree(ROOT, data_dir, tmp_path / "bin")
+
+    assert (install_root / "defaults/noctalia/config.toml").is_file()
+    assert (install_root / "defaults/noctalia/media.json").is_file()
+    for template in (ROOT / "templates").rglob("*"):
+        if template.is_file():
+            installed = install_root / "templates" / template.relative_to(ROOT / "templates")
+            assert installed.is_file(), f"missing installed template {installed}"
+    # Sanity check that the template loop saw the expected runtime units.
+    assert (install_root / "templates/systemd/rice-shortcuts.service.in").is_file()
+    assert (install_root / "templates/kwin/main.js.in").is_file()
+    assert (install_root / "templates/kwin/arrange.js.in").is_file()
+    for name, files in (
+        ("themes", ("plugin.toml", "panel.luau")),
+        ("profile", ("plugin.toml", "widget.luau")),
+        ("cheatsheet", ("plugin.toml", "panel.luau")),
+        (
+            "media",
+            (
+                "plugin.toml",
+                "service.luau",
+                "desktop.luau",
+                "player_panel.luau",
+                "queue_panel.luau",
+            ),
+        ),
+    ):
+        for filename in files:
+            copied = data_dir / "noctalia-plugins" / name / filename
+            assert copied.is_file(), f"missing installed plugin file {copied}"
+        marker = data_dir / "noctalia-plugins" / name / PLUGIN_MARKER
+        assert marker.is_file(), f"missing ownership marker for {name}"
 
 
 def test_install_tree_dry_run_changes_nothing(tmp_path: Path):
@@ -238,9 +374,19 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
     (data / "kwin/scripts/rice-placement/contents/code/main.js").write_text(
         "", encoding="utf-8"
     )
+    (data / "noctalia-plugins/themes").mkdir(parents=True)
+    (data / "noctalia-plugins/themes").joinpath(PLUGIN_MARKER).write_text(
+        "installed by rice\n", encoding="utf-8"
+    )
+    (data / "noctalia-plugins/themes/plugin.toml").write_text("", encoding="utf-8")
+    (data / "noctalia-plugins/other").mkdir(parents=True)
+    (data / "noctalia-plugins/other/plugin.toml").write_text("", encoding="utf-8")
     (config / "noctalia").mkdir(parents=True)
-    (config / "noctalia/rice.toml").write_text("", encoding="utf-8")
+    (config / "noctalia/config.toml").write_text(
+        NOCTALIA_GENERATED_MARKER + "\n", encoding="utf-8"
+    )
     (config / "noctalia/other.toml").write_text("", encoding="utf-8")
+    (config / "noctalia/media.json").write_text("{}", encoding="utf-8")
     (config / "rice").mkdir()
     (config / "rice/rice.toml").write_text("", encoding="utf-8")
     (state / "rice/backups").mkdir(parents=True)
@@ -253,6 +399,7 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
         "rice-startup.service",
         "rice-theme-boot.service",
         "rice-theme-hourly.timer",
+        "rice-shortcuts.service",
     ):
         (config / "systemd/user" / unit).write_text("", encoding="utf-8")
     (config / "systemd/user/other.service").write_text("", encoding="utf-8")
@@ -276,12 +423,16 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
             "rice-startup.service",
             "rice-theme-boot.service",
             "rice-theme-hourly.timer",
+            "rice-shortcuts.service",
         ]
     ]
     assert not (data / "rice").exists()
     assert not (data / "kwin/scripts/rice-placement").exists()
-    assert not (config / "noctalia/rice.toml").exists()
+    assert not (data / "noctalia-plugins/themes").exists()
+    assert (data / "noctalia-plugins/other/plugin.toml").is_file()
+    assert not (config / "noctalia/config.toml").exists()
     assert (config / "noctalia/other.toml").is_file()
+    assert (config / "noctalia/media.json").is_file()
     assert not (config / "rice/rice.toml").exists()
     assert not (state / "rice/runtime.json").exists()
     assert not (state / "rice/theme-current").exists()
@@ -290,6 +441,60 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
     assert (config / "systemd/user/other.service").is_file()
     assert not wrapper.exists()
     assert (wallpapers / "keep.png").is_file()
+
+
+def test_uninstall_keeps_hand_written_noctalia_config(tmp_path: Path, monkeypatch):
+    config = tmp_path / "config"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+    hand_written = config / "noctalia/config.toml"
+    hand_written.parent.mkdir(parents=True)
+    hand_written.write_text("[bar]\norder = [\"custom\"]\n", encoding="utf-8")
+    backup = tmp_path / "state/rice/backups/20260101-000000/config.toml"
+    backup.parent.mkdir(parents=True)
+    backup.write_text("older\n", encoding="utf-8")
+
+    uninstall(runner=lambda command: None)
+
+    assert hand_written.read_text(encoding="utf-8") == "[bar]\norder = [\"custom\"]\n"
+
+
+def test_uninstall_preserves_unmarked_user_plugin_with_rice_name(
+    tmp_path: Path, monkeypatch
+):
+    data = tmp_path / "data"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(data))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    user_plugin = data / "noctalia-plugins/themes"
+    user_file = user_plugin / "plugin.toml"
+    user_file.parent.mkdir(parents=True)
+    user_file.write_text("# user theme plugin\n", encoding="utf-8")
+
+    uninstall(runner=lambda command: None)
+
+    assert user_file.read_text(encoding="utf-8") == "# user theme plugin\n"
+    assert not (user_plugin / PLUGIN_MARKER).exists()
+
+
+def test_uninstall_removes_empty_plugin_directory(tmp_path: Path, monkeypatch):
+    data = tmp_path / "data"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(data))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    plugin = data / "noctalia-plugins/media"
+    plugin.mkdir(parents=True)
+    (plugin / PLUGIN_MARKER).write_text("installed by rice\n", encoding="utf-8")
+    (plugin / "plugin.toml").write_text("", encoding="utf-8")
+
+    uninstall(runner=lambda command: None)
+
+    assert not (data / "noctalia-plugins").exists()
 
 
 def test_uninstall_dry_run_changes_nothing(tmp_path: Path, monkeypatch, capsys):
@@ -301,6 +506,55 @@ def test_uninstall_dry_run_changes_nothing(tmp_path: Path, monkeypatch, capsys):
 
     assert (tmp_path / "data/rice").is_dir()
     assert "DRY-RUN" in capsys.readouterr().out
+
+
+def test_uninstall_restores_preexisting_noctalia_config(tmp_path: Path, monkeypatch):
+    home = tmp_path / "home"
+    config = tmp_path / "config"
+    state = tmp_path / "state"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
+    monkeypatch.setenv("XDG_STATE_HOME", str(state))
+
+    generated = config / "noctalia/config.toml"
+    generated.parent.mkdir(parents=True)
+    generated.write_text(NOCTALIA_GENERATED_MARKER + "\n[bar]\n", encoding="utf-8")
+    original = state / "rice/backups/20260101-000000/config.toml"
+    original.parent.mkdir(parents=True)
+    original.write_text("original user settings\n", encoding="utf-8")
+    later = state / "rice/backups/20260102-000000/config.toml"
+    later.parent.mkdir(parents=True)
+    later.write_text(NOCTALIA_GENERATED_MARKER + "\n[bar]\n", encoding="utf-8")
+
+    uninstall(runner=lambda command: None)
+
+    assert generated.read_text(encoding="utf-8") == "original user settings\n"
+    assert original.is_file()
+    assert later.is_file()
+
+
+def test_uninstall_removes_generated_config_without_user_backup(
+    tmp_path: Path, monkeypatch
+):
+    config = tmp_path / "config"
+    state = tmp_path / "state"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
+    monkeypatch.setenv("XDG_STATE_HOME", str(state))
+
+    generated = config / "noctalia/config.toml"
+    generated.parent.mkdir(parents=True)
+    generated.write_text(NOCTALIA_GENERATED_MARKER + "\n", encoding="utf-8")
+    backup = state / "rice/backups/20260101-000000/config.toml"
+    backup.parent.mkdir(parents=True)
+    backup.write_text(NOCTALIA_GENERATED_MARKER + "\n", encoding="utf-8")
+
+    uninstall(runner=lambda command: None)
+
+    assert not generated.exists()
+    assert backup.is_file()
 
 
 def test_preflight_accepts_arch_family(tmp_path: Path):
