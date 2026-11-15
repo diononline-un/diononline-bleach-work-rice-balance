@@ -1,0 +1,157 @@
+const RULES = __RULES__;
+
+const placedWindows = [];
+const placedActivities = [];
+const watchedWindows = [];
+
+function windowKey(win) {
+    return String(win.internalId);
+}
+
+function outputByName(name) {
+    const screens = workspace.screens;
+    for (let i = 0; i < screens.length; i++) {
+        if (screens[i].name === name) return screens[i];
+    }
+    return null;
+}
+
+function areaFor(output) {
+    return workspace.clientArea(KWin.MaximizeArea, output, workspace.currentDesktop);
+}
+
+function currentActivityMatches(rule) {
+    return !rule.activity || workspace.currentActivity === rule.activity;
+}
+
+function visibleInCurrentActivity(win) {
+    const activities = win.activities;
+    if (!activities || activities.length === 0) return true;
+    return activities.indexOf(workspace.currentActivity) >= 0;
+}
+
+function matchingRule(win) {
+    const cls = (win.resourceClass || "").toLowerCase();
+    const title = (win.caption || "").toLowerCase();
+    for (let i = 0; i < RULES.length; i++) {
+        const rule = RULES[i];
+        if (!rule.wm_class && !rule.match_title) continue;
+        if (!currentActivityMatches(rule)) continue;
+        if (rule.wm_class && rule.wm_class !== cls) continue;
+        if (rule.match_title && title.indexOf(rule.match_title) < 0) continue;
+        return rule;
+    }
+    return null;
+}
+
+function alreadyPlaced(win) {
+    const key = windowKey(win);
+    for (let i = 0; i < placedWindows.length; i++) {
+        if (placedWindows[i] === key) {
+            return placedActivities[i] === workspace.currentActivity;
+        }
+    }
+    return false;
+}
+
+function markPlaced(win) {
+    const key = windowKey(win);
+    for (let i = 0; i < placedWindows.length; i++) {
+        if (placedWindows[i] === key) {
+            placedActivities[i] = workspace.currentActivity;
+            return;
+        }
+    }
+    placedWindows.push(key);
+    placedActivities.push(workspace.currentActivity);
+}
+
+function forget(win) {
+    const key = windowKey(win);
+    let index = placedWindows.indexOf(key);
+    if (index >= 0) {
+        placedWindows.splice(index, 1);
+        placedActivities.splice(index, 1);
+    }
+    index = watchedWindows.indexOf(key);
+    if (index >= 0) watchedWindows.splice(index, 1);
+}
+
+function place(win, rule) {
+    const output = outputByName(rule.output);
+    if (!output) return false;
+    const area = areaFor(output);
+    const gap = rule.zone.gap_px || 0;
+    const x = Math.round(area.x + area.width * rule.zone.x + gap);
+    const y = Math.round(area.y + area.height * rule.zone.y + gap);
+    const w = Math.max(200, Math.round(area.width * rule.zone.w - gap * 2));
+    const h = Math.max(200, Math.round(area.height * rule.zone.h - gap * 2));
+
+    if (win.fullScreen) win.fullScreen = false;
+    win.setMaximize(false, false);
+    workspace.sendClientToScreen(win, output);
+    win.frameGeometry = { x: x, y: y, width: w, height: h };
+    if (rule.mode === "maximized") {
+        win.setMaximize(true, true);
+    } else if (rule.mode === "fullscreen") {
+        win.fullScreen = true;
+    }
+    return true;
+}
+
+function watchFullscreen(win) {
+    if (!win) return;
+    const key = windowKey(win);
+    if (watchedWindows.indexOf(key) >= 0) return;
+    watchedWindows.push(key);
+    win.fullScreenChanged.connect(updateFullscreen);
+}
+
+function applyRule(win) {
+    if (!win || !win.normalWindow || alreadyPlaced(win)) return;
+    if (!visibleInCurrentActivity(win)) return;
+    const rule = matchingRule(win);
+    if (!rule) return;
+    if (place(win, rule)) {
+        markPlaced(win);
+        watchFullscreen(win);
+        updateFullscreen();
+    }
+}
+
+let fullscreenOutput = "";
+
+function updateFullscreen() {
+    const win = workspace.activeWindow;
+    const isFullscreen = !!(win && win.fullScreen && win.output);
+    const outputName = isFullscreen ? win.output.name : "";
+    if (fullscreenOutput && fullscreenOutput !== outputName) {
+        callDBus("org.rice.Rice", "/Rice", "org.rice.Rice", "SetFullscreen",
+                 fullscreenOutput, false);
+    }
+    if (outputName) {
+        callDBus("org.rice.Rice", "/Rice", "org.rice.Rice", "SetFullscreen",
+                 outputName, isFullscreen);
+    }
+    fullscreenOutput = outputName;
+}
+
+function applyAll() {
+    const windows = workspace.windowList();
+    for (let i = 0; i < windows.length; i++) applyRule(windows[i]);
+}
+
+workspace.windowAdded.connect(applyRule);
+workspace.windowRemoved.connect(forget);
+workspace.windowActivated.connect(function (win) {
+    applyRule(win);
+    watchFullscreen(win);
+    updateFullscreen();
+});
+workspace.currentActivityChanged.connect(function () {
+    applyAll();
+    updateFullscreen();
+});
+
+applyAll();
+updateFullscreen();
