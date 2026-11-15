@@ -1,6 +1,6 @@
 ---
 status: in-development
-progress: 15
+progress: 25
 version: "0.1.0"
 tags: [kde, plasma, kwin, noctalia, arch, cachyos, installer, rice]
 scope: "Path-neutral Arch/CachyOS KDE Plasma 6 + Noctalia work/private rice installer with configurable output roles, zones, startup, and autostart."
