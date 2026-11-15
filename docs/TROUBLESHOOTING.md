@@ -40,6 +40,14 @@ The Plasma shell is missing from `PATH` or the session is not a Plasma session.
 Confirm the Plasma 6 packages and start the correct session at the display
 manager.
 
+### The installer refuses a user-owned plugin directory
+
+Plugin directory names are generic (`themes`, `profile`, `cheatsheet`, `media`).
+If `$XDG_DATA_HOME/noctalia-plugins/<name>` already exists without a
+`.rice-plugin` file, install stops before copying and names that path. Move or
+rename your plugin, then rerun. Add `.rice-plugin` only when you intend rice to
+own and later remove that directory.
+
 ### Package installation fails midway
 
 The installer runs `pacman` and the AUR helper with `--needed --noconfirm`.
@@ -307,10 +315,11 @@ Uninstall removes only known rice-owned paths. A unit whose name does not start
 with `rice-`, a KWin script in another directory, a hand-written
 `$XDG_CONFIG_HOME/noctalia/config.toml` without the rice marker, or a wrapper
 that does not contain the rice CLI marker is intentionally left alone. Backups
-and wallpapers are also kept. The rice plugin directories under
-`$XDG_DATA_HOME/noctalia-plugins` are removed; the shared parent is removed only
-when it becomes empty, so an unrelated plugin keeps the directory in place.
-Remove any other leftover manually after confirming it is not needed.
+and wallpapers are also kept. A rice plugin directory under
+`$XDG_DATA_HOME/noctalia-plugins` is removed only when it contains
+`.rice-plugin`; the shared parent is removed only when it becomes empty, so an
+unmarked user plugin with the same name stays in place. Remove any other
+leftover manually after confirming it is not needed.
 
 Uninstall restores the oldest Noctalia backup that lacks the rice marker. If no
 such backup exists, it removes the generated file. A newer backup may contain a

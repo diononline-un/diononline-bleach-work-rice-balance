@@ -7,6 +7,7 @@ from rice.config import validate_config
 from rice.generate import generate_kwin, output_roles
 from rice.installer import (
     NOCTALIA_GENERATED_MARKER,
+    PLUGIN_MARKER,
     build_initial_config,
     install_packages,
     install_tree,
@@ -259,6 +260,26 @@ def test_install_tree_copies_plugins_when_present(tmp_path: Path):
 
     copied = data_dir / "noctalia-plugins/example/plugin.toml"
     assert copied.is_file()
+    marker = data_dir / "noctalia-plugins/example" / PLUGIN_MARKER
+    assert marker.is_file()
+    assert "Installed by rice" in marker.read_text(encoding="utf-8")
+
+
+def test_install_tree_refuses_unmarked_existing_plugin_directory(tmp_path: Path):
+    repo = _make_repo(tmp_path / "repo", plugins=True)
+    data_dir = tmp_path / "share"
+    user_plugin = data_dir / "noctalia-plugins/example"
+    user_plugin.mkdir(parents=True)
+    user_file = user_plugin / "plugin.toml"
+    user_file.write_text("# my own plugin\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="user-owned plugin directory") as error:
+        install_tree(repo, data_dir, tmp_path / "bin")
+
+    assert str(user_plugin) in str(error.value)
+    assert user_file.read_text(encoding="utf-8") == "# my own plugin\n"
+    assert not (user_plugin / PLUGIN_MARKER).exists()
+    assert not (data_dir / "rice").exists()
 
 
 def test_real_repo_plugins_and_noctalia_base_are_copied(tmp_path: Path):
@@ -298,6 +319,8 @@ def test_real_repo_plugins_and_noctalia_base_are_copied(tmp_path: Path):
         for filename in files:
             copied = data_dir / "noctalia-plugins" / name / filename
             assert copied.is_file(), f"missing installed plugin file {copied}"
+        marker = data_dir / "noctalia-plugins" / name / PLUGIN_MARKER
+        assert marker.is_file(), f"missing ownership marker for {name}"
 
 
 def test_install_tree_dry_run_changes_nothing(tmp_path: Path):
@@ -352,6 +375,9 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
         "", encoding="utf-8"
     )
     (data / "noctalia-plugins/themes").mkdir(parents=True)
+    (data / "noctalia-plugins/themes").joinpath(PLUGIN_MARKER).write_text(
+        "installed by rice\n", encoding="utf-8"
+    )
     (data / "noctalia-plugins/themes/plugin.toml").write_text("", encoding="utf-8")
     (data / "noctalia-plugins/other").mkdir(parents=True)
     (data / "noctalia-plugins/other/plugin.toml").write_text("", encoding="utf-8")
@@ -436,15 +462,35 @@ def test_uninstall_keeps_hand_written_noctalia_config(tmp_path: Path, monkeypatc
     assert hand_written.read_text(encoding="utf-8") == "[bar]\norder = [\"custom\"]\n"
 
 
+def test_uninstall_preserves_unmarked_user_plugin_with_rice_name(
+    tmp_path: Path, monkeypatch
+):
+    data = tmp_path / "data"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(data))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    user_plugin = data / "noctalia-plugins/themes"
+    user_file = user_plugin / "plugin.toml"
+    user_file.parent.mkdir(parents=True)
+    user_file.write_text("# user theme plugin\n", encoding="utf-8")
+
+    uninstall(runner=lambda command: None)
+
+    assert user_file.read_text(encoding="utf-8") == "# user theme plugin\n"
+    assert not (user_plugin / PLUGIN_MARKER).exists()
+
+
 def test_uninstall_removes_empty_plugin_directory(tmp_path: Path, monkeypatch):
     data = tmp_path / "data"
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setenv("XDG_DATA_HOME", str(data))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
-    plugin = data / "noctalia-plugins/media/plugin.toml"
-    plugin.parent.mkdir(parents=True)
-    plugin.write_text("", encoding="utf-8")
+    plugin = data / "noctalia-plugins/media"
+    plugin.mkdir(parents=True)
+    (plugin / PLUGIN_MARKER).write_text("installed by rice\n", encoding="utf-8")
+    (plugin / "plugin.toml").write_text("", encoding="utf-8")
 
     uninstall(runner=lambda command: None)
 

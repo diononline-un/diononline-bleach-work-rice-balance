@@ -67,7 +67,14 @@ short error line. See [Shortcuts](SHORTCUTS.md) for the generated bindings.
 Plugins are installed when the repository or the installed runtime tree contains
 a `plugins/` directory. Each child directory is copied to
 `$XDG_DATA_HOME/noctalia-plugins/<name>/`, which is the location Noctalia reads
-plugin manifests from.
+plugin manifests from. Every installed directory receives a `.rice-plugin`
+ownership marker.
+
+The plugin directory names are generic. Before copying, the installer checks an
+existing target directory: without `.rice-plugin` it refuses to merge and stops
+with the conflicting path, so a user plugin named `themes` or `profile` is never
+overwritten. Reinstalling a rice-owned directory is allowed because it carries
+the marker.
 
 | Directory | Plugin id | Entries | Purpose |
 | --- | --- | --- | --- |
@@ -152,12 +159,13 @@ The installer copies `defaults/`, `templates/`, `assets/`, `src/rice/`, and any
 the configuration directory; `apply` performs that merge.
 
 Uninstall removes the generated `$XDG_CONFIG_HOME/noctalia/config.toml` and the
-rice plugin directories under `$XDG_DATA_HOME/noctalia-plugins`. The shared
-parent directory is removed only when it becomes empty, so unrelated plugins
-stay in place. When the oldest backup contains a pre-rice `config.toml`,
-uninstall restores it instead. A hand-written file without the rice marker is
-left untouched, and unrelated Noctalia files such as `media.json` stay in place.
-Backups and wallpapers are never deleted.
+rice plugin directories under `$XDG_DATA_HOME/noctalia-plugins`. A plugin
+directory is removed only when it contains `.rice-plugin`; a user directory with
+the same generic name is left untouched. The shared parent directory is removed
+only when it becomes empty. When the oldest backup contains a pre-rice
+`config.toml`, uninstall restores it instead. A hand-written file without the
+rice marker is left untouched, and unrelated Noctalia files such as `media.json`
+stay in place. Backups and wallpapers are never deleted.
 
 ## Current Limitations
 

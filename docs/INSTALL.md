@@ -86,9 +86,11 @@ Installed runtime paths:
 | `$XDG_CONFIG_HOME/noctalia/config.toml` | Generated merged Noctalia configuration. |
 
 If the repository contains a `plugins/` directory, each child directory is
-copied to `$XDG_DATA_HOME/noctalia-plugins/`. The `themes` plugin provides the
-`rice/themes:panel` wallpaper picker opened by `rice theme panel`, the
-`profile` plugin provides the `rice/profile:bar` Work/Private switch, the
+copied to `$XDG_DATA_HOME/noctalia-plugins/` and marked with a `.rice-plugin`
+file. Install refuses an existing directory that lacks the marker, naming the
+conflicting path instead of merging into a user plugin. The `themes` plugin
+provides the `rice/themes:panel` wallpaper picker opened by `rice theme panel`,
+the `profile` plugin provides the `rice/profile:bar` Work/Private switch, the
 `cheatsheet` plugin provides the `rice/cheatsheet:panel` shortcut reference
 opened by `rice cheatsheet`, and the optional `media` plugin provides the
 `rice/media` transport and queue panels. See [Noctalia](NOCTALIA.md) for the
@@ -149,8 +151,8 @@ Uninstall disables the rice user units and removes only artifacts the installer
 created:
 
 - `$XDG_DATA_HOME/rice`
-- `$XDG_DATA_HOME/noctalia-plugins/<rice plugin>`, with the shared parent
-  removed only when empty
+- `$XDG_DATA_HOME/noctalia-plugins/<rice plugin>`, only when `.rice-plugin`
+  marks the directory; the shared parent is removed only when empty
 - `$XDG_CONFIG_HOME/rice/rice.toml`
 - `$XDG_CONFIG_HOME/noctalia/config.toml`, or the oldest pre-rice backup when
   one exists

@@ -32,9 +32,16 @@ APPS_CATALOG = REPO_ROOT / "defaults/apps.toml"
 DEFAULT_CONFIG = REPO_ROOT / "defaults/rice.toml"
 OS_RELEASE = Path("/etc/os-release")
 OUTPUT_ROLES = ("side", "portrait")
-# Plugin directories shipped by rice. Uninstall removes only these names from
-# the shared Noctalia plugin directory so unrelated user plugins stay in place.
+# Plugin directories shipped by rice. Uninstall checks only these names and
+# removes one only when it carries the ownership marker below.
 PLUGIN_NAMES = ("themes", "profile", "cheatsheet", "media")
+# Ownership marker written into every installed plugin directory. Plugin names
+# are generic, so the marker is the only safe way to tell a rice copy from a
+# user plugin with the same name.
+PLUGIN_MARKER = ".rice-plugin"
+PLUGIN_MARKER_TEXT = (
+    "Installed by rice. This directory is rice-owned and removed by uninstall.\n"
+)
 
 BASE_PACKAGES = [
     "python",
@@ -101,6 +108,20 @@ def install_tree(repo: Path, data_dir: Path, bin_dir: Path, dry_run=False):
     data_dir = Path(data_dir)
     bin_dir = Path(bin_dir)
     install_root = data_dir / "rice"
+    plugins = repo / "plugins"
+    plugin_targets = []
+    if plugins.is_dir():
+        for plugin in sorted(plugins.iterdir()):
+            if not plugin.is_dir():
+                continue
+            target = data_dir / "noctalia-plugins" / plugin.name
+            if target.exists() and not (target / PLUGIN_MARKER).is_file():
+                raise RuntimeError(
+                    f"refusing to overwrite user-owned plugin directory: {target}. "
+                    f"Move it aside or add {PLUGIN_MARKER} after confirming rice "
+                    "may manage it."
+                )
+            plugin_targets.append((plugin, target))
     if dry_run:
         print("DRY-RUN: install", repo, "to", install_root)
         return install_root
@@ -118,15 +139,9 @@ def install_tree(repo: Path, data_dir: Path, bin_dir: Path, dry_run=False):
     shutil.copytree(
         repo / "assets", install_root / "assets", dirs_exist_ok=True, ignore=ignore
     )
-    plugins = repo / "plugins"
-    if plugins.is_dir():
-        for plugin in plugins.iterdir():
-            if plugin.is_dir():
-                shutil.copytree(
-                    plugin,
-                    data_dir / "noctalia-plugins" / plugin.name,
-                    dirs_exist_ok=True,
-                )
+    for plugin, target in plugin_targets:
+        shutil.copytree(plugin, target, dirs_exist_ok=True)
+        (target / PLUGIN_MARKER).write_text(PLUGIN_MARKER_TEXT, encoding="utf-8")
     bin_dir.mkdir(parents=True, exist_ok=True)
     wrapper = bin_dir / "rice"
     wrapper.write_text(
@@ -354,7 +369,7 @@ def _remove_noctalia_plugins(dry_run: bool) -> None:
         return
     for name in PLUGIN_NAMES:
         plugin = root / name
-        if plugin.exists():
+        if (plugin / PLUGIN_MARKER).is_file():
             _remove(plugin, dry_run)
     if dry_run:
         print("DRY-RUN: remove", root, "when empty")

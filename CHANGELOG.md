@@ -3,7 +3,8 @@
 ## 2026-11-15 — Installer roles, Noctalia docs, and privacy coverage
 
 - Fixed installer output roles: the primary display is `main`, the first non-primary is `side`, and the second is `portrait`, independent of KScreen order; ids and geometry stay unchanged.
-- Added installer coverage that copies all four plugin manifests and the Noctalia base config, removes `$XDG_DATA_HOME/noctalia-plugins` on uninstall, and restores the oldest pre-rice `config.toml` when one exists.
+- Added installer coverage that copies all four plugin manifests and the Noctalia base config, removes rice-owned plugin directories on uninstall, and restores the oldest pre-rice `config.toml` when one exists.
+- Hardened plugin ownership: every installed plugin directory gets a `.rice-plugin` marker, install refuses an unmarked pre-existing directory with the conflicting path, and uninstall removes only marked directories.
 - Added `docs/NOCTALIA.md` and `docs/SHORTCUTS.md`; refreshed README, install, architecture, placement, theming, and troubleshooting text away from the old include path.
 - Extended the PII scan to `.luau` and JSON sources and fixed the skip check so worktree runs scan the real tree; removed the remaining personal path from the changelog and test assertion.
 - Suite is now 162 tests.
