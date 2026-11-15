@@ -1,0 +1,14 @@
+[Unit]
+Description=Rice D-Bus daemon
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.rice.Rice
+ExecStart=%h/.local/bin/@RICE_COMMAND@
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

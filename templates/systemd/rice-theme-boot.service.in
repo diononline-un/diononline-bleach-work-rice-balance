@@ -1,0 +1,12 @@
+[Unit]
+Description=Rice boot theme
+After=graphical-session.target rice-daemon.service
+Wants=rice-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/@RICE_COMMAND@
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical-session.target

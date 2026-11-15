@@ -1,0 +1,10 @@
+[Unit]
+Description=Rice hourly theme rotation timer
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=rice-theme-hourly.service
+
+[Install]
+WantedBy=timers.target

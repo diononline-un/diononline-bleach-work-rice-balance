@@ -1,7 +1,19 @@
 import json
 from pathlib import Path
 
+import tomli_w
+
 TEMPLATE = Path(__file__).resolve().parents[2] / "templates" / "kwin" / "main.js.in"
+NOCTALIA_TEMPLATE = (
+    Path(__file__).resolve().parents[2] / "templates" / "noctalia" / "rice.toml.in"
+)
+SYSTEMD_UNITS = {
+    "rice-daemon.service": "rice daemon",
+    "rice-startup.service": "rice startup",
+    "rice-theme-boot.service": "rice theme boot",
+    "rice-theme-hourly.service": "rice theme hourly",
+    "rice-theme-hourly.timer": "",
+}
 
 
 def _zone(config: dict, zone_id: str) -> dict:
@@ -57,3 +69,66 @@ def generate_kwin(config: dict) -> str:
     return TEMPLATE.read_text(encoding="utf-8").replace(
         "__RULES__", json.dumps(rules, indent=2)
     )
+
+
+def _widget_anchor(config: dict, widget: dict) -> dict:
+    zone_id = widget.get("zone")
+    zone = next((item for item in config.get("zone", []) if item["id"] == zone_id), None)
+    if zone is None:
+        raise ValueError(f"desktop widget references unknown zone: {zone_id}")
+    output = next(
+        (item for item in config.get("output", []) if item["id"] == zone["output"]),
+        None,
+    )
+    if output is None:
+        raise ValueError(f"zone {zone_id} references unknown output: {zone['output']}")
+    return {
+        "type": widget["plugin"],
+        "output": output["connector"],
+        "cx": round(
+            output.get("x", 0) + output.get("width", 0) * (zone["x"] + zone["w"] / 2),
+            1,
+        ),
+        "cy": round(
+            output.get("y", 0) + output.get("height", 0) * (zone["y"] + zone["h"] / 2),
+            1,
+        ),
+        "scale": widget.get("scale", 1.0),
+    }
+
+
+def generate_noctalia(config: dict) -> str:
+    widgets = [
+        _widget_anchor(config, widget) for widget in config.get("desktop_widget", [])
+    ]
+    data = {
+        "desktop_widgets": {
+            "enabled": True,
+            "widget_order": [f"rice_{index}" for index in range(len(widgets))],
+            "widget": {
+                f"rice_{index}": widget for index, widget in enumerate(widgets)
+            },
+        }
+    }
+    header = NOCTALIA_TEMPLATE.read_text(encoding="utf-8")
+    return header + tomli_w.dumps(data)
+
+
+def generate_runtime(config: dict) -> dict:
+    return {
+        "startup": config.get("startup", {}),
+        "autostart": config.get("autostart", {}),
+        "apps": {app["id"]: app for app in config.get("app", [])},
+        "zones": {zone["id"]: zone for zone in config.get("zone", [])},
+        "activities": config.get("activities", {}),
+        "theme": config.get("theme", {}),
+    }
+
+
+def generate_systemd(config: dict, install_root: Path) -> dict[Path, str]:
+    template_dir = Path(install_root) / "templates" / "systemd"
+    units = {}
+    for filename, command in SYSTEMD_UNITS.items():
+        text = (template_dir / f"{filename}.in").read_text(encoding="utf-8")
+        units[Path(filename)] = text.replace("@RICE_COMMAND@", command)
+    return units

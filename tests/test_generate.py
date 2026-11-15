@@ -1,8 +1,18 @@
+import tomllib
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
-from rice.generate import generate_kwin, kwin_rules
+from rice.generate import (
+    generate_kwin,
+    generate_noctalia,
+    generate_runtime,
+    generate_systemd,
+    kwin_rules,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
 
 CONFIG = {
     "output": [{"id": "main", "connector": "DP-1", "primary": True, "x": 0, "y": 0, "width": 5120, "height": 1440}],
@@ -12,6 +22,8 @@ CONFIG = {
     "placement": [{"app": "browser", "activity": "private", "zone": "center-left", "mode": "normal"}],
     "activities": {"private": {"name": "Private", "kde_id": "private-uuid"},
                    "work": {"name": "Work", "kde_id": "work-uuid"}},
+    "startup": {"always": [], "private": ["browser"]},
+    "desktop_widget": [{"id": "clock", "plugin": "clock", "zone": "center-left", "scale": 1.0}],
 }
 
 
@@ -90,3 +102,60 @@ def test_mode_is_passed_through(mode):
     config = deepcopy(CONFIG)
     config["placement"][0]["mode"] = mode
     assert kwin_rules(config)[0]["mode"] == mode
+
+
+def test_noctalia_output_is_valid_toml():
+    data = tomllib.loads(generate_noctalia(CONFIG))
+    assert "desktop_widgets" in data
+
+
+def test_noctalia_widget_uses_zone_center_in_output_pixels():
+    data = tomllib.loads(generate_noctalia(CONFIG))
+    widgets = data["desktop_widgets"]["widget"]
+    assert data["desktop_widgets"]["widget_order"] == ["rice_0"]
+    assert widgets["rice_0"] == {
+        "type": "clock",
+        "output": "DP-1",
+        "cx": 1280.0,
+        "cy": 720.0,
+        "scale": 1.0,
+    }
+
+
+def test_noctalia_without_widgets_is_still_valid_toml():
+    config = deepcopy(CONFIG)
+    config["desktop_widget"] = []
+    data = tomllib.loads(generate_noctalia(config))
+    assert data["desktop_widgets"]["widget_order"] == []
+    assert data["desktop_widgets"]["widget"] == {}
+
+
+def test_runtime_contains_startup_and_zones():
+    data = generate_runtime(CONFIG)
+    assert data["startup"]["private"] == ["browser"]
+    assert data["zones"]["center-left"]["w"] == 0.5
+    assert data["apps"]["browser"]["command"] == ["firefox"]
+
+
+def test_systemd_units_have_user_exec():
+    units = generate_systemd(CONFIG, ROOT)
+    content = "\n".join(units.values())
+    assert "rice startup" in content
+    assert "rice daemon" in content
+
+
+def test_systemd_units_are_path_neutral_and_cover_runtime():
+    units = generate_systemd(CONFIG, ROOT)
+    content = "\n".join(units.values())
+    assert "/home/" not in content
+    assert "%h/.local/bin/rice" in content
+    assert "rice theme boot" in content
+    assert "rice theme hourly" in content
+
+
+def test_hourly_timer_triggers_hourly_service():
+    units = generate_systemd(CONFIG, ROOT)
+    timer = units[Path("rice-theme-hourly.timer")]
+    assert "OnCalendar=hourly" in timer
+    assert "Unit=rice-theme-hourly.service" in timer
+    assert "@RICE_COMMAND@" not in "".join(units.values())

@@ -1,0 +1,12 @@
+[Unit]
+Description=Rice startup applications
+After=graphical-session.target rice-daemon.service rice-theme-boot.service
+Wants=rice-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/@RICE_COMMAND@
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical-session.target

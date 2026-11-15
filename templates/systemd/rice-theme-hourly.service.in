@@ -1,0 +1,8 @@
+[Unit]
+Description=Rice hourly theme rotation
+After=rice-daemon.service
+Wants=rice-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/@RICE_COMMAND@
