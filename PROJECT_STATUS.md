@@ -1,6 +1,6 @@
 ---
 status: in-development
-progress: 75
+progress: 78
 version: "0.1.0"
 tags: [kde, plasma, kwin, noctalia, arch, cachyos, installer, rice]
 scope: "Path-neutral Arch/CachyOS KDE Plasma 6 + Noctalia work/private rice installer with configurable output roles, zones, startup, and autostart."
@@ -17,7 +17,8 @@ next_steps:
 # Current State
 
 - Core backend, installer, generated artifacts, docs, tests, and MIT license are implemented on `feat/core`.
-- Full suite: 133 tests passing; integration dry-run and PII gates green.
+- Full suite: 137 tests passing; integration dry-run and PII gates green.
 - Theme picker, profile switch, and cheatsheet panels are implemented on `feat/noctalia-ui`; `rice quickstart` and `rice cheatsheet` work, `rice arrange` waits for the KWin method.
+- The optional `rice/media` plugin and `defaults/noctalia/media.json` are in place; it stays disabled until a user configures a local compatible media API.
 - Installer has not yet been exercised on a clean target; live rice is unchanged.
 - `feat/noctalia-ui` is pushed for review but not merged; the web configurator remains a follow-up plan.

@@ -1,12 +1,23 @@
+import json
 from pathlib import Path
 
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "defaults/noctalia/config.toml"
+MEDIA_CONFIG = ROOT / "defaults/noctalia/media.json"
 THEME_PLUGIN = ROOT / "plugins/themes"
 PROFILE_PLUGIN = ROOT / "plugins/profile"
 CHEATSHEET_PLUGIN = ROOT / "plugins/cheatsheet"
+MEDIA_PLUGIN = ROOT / "plugins/media"
+MEDIA_FILES = (
+    "plugin.toml",
+    "service.luau",
+    "desktop.luau",
+    "player_panel.luau",
+    "queue_panel.luau",
+)
+DEFAULT_MEDIA_API = "http://127.0.0.1:26538/api/v1"
 ACTIVITY_UUIDS = ("012e885b", "db345c88")
 CONNECTOR_NAMES = ("DP-1", "DP-2", "HDMI")
 
@@ -82,3 +93,36 @@ def test_profile_plugin_has_no_hardcoded_activity_uuid():
     text = (ROOT / "plugins/profile/widget.luau").read_text(encoding="utf-8")
     assert "012e885b" not in text
     assert "db345c88" not in text
+
+
+def test_media_plugin_files_exist_and_manifest_is_valid_toml():
+    for name in MEDIA_FILES:
+        assert (MEDIA_PLUGIN / name).is_file(), f"missing plugins/media/{name}"
+    with (MEDIA_PLUGIN / "plugin.toml").open("rb") as handle:
+        data = tomllib.load(handle)
+    assert data["id"] == "rice/media"
+    assert data["license"] == "MIT"
+    assert data["plugin_api"] == 51
+
+
+def test_media_plugin_is_metadata_only_and_has_no_personal_paths():
+    for name in MEDIA_FILES:
+        text = (MEDIA_PLUGIN / name).read_text(encoding="utf-8")
+        assert "/home/" not in text, f"personal path in plugins/media/{name}"
+        assert "/home/dion" not in text, f"personal path in plugins/media/{name}"
+
+
+def test_media_plugin_reads_configurable_api_from_home():
+    for name in ("service.luau", "desktop.luau", "player_panel.luau", "queue_panel.luau"):
+        text = (MEDIA_PLUGIN / name).read_text(encoding="utf-8")
+        assert 'noctalia.getenv("HOME")' in text, f"no HOME usage in {name}"
+        assert "/noctalia/media.json" in text, f"no config path in {name}"
+        assert "config.api_url" in text, f"no configurable api_url in {name}"
+
+
+def test_media_default_config_is_valid_json_with_api_url():
+    data = json.loads(MEDIA_CONFIG.read_text(encoding="utf-8"))
+    assert data["api_url"] == DEFAULT_MEDIA_API
+    assert "_comment" in data
+    assert "optional" in data["_comment"].lower() or "opt-in" in data["_comment"].lower()
+    assert "rice/media" not in CONFIG.read_text(encoding="utf-8")

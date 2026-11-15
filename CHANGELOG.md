@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Optional media plugin
+
+- Added `plugins/media/` as an opt-in `rice/media` companion for a local YouTube Music API; it stays out of the base bar and desktop widgets until the user enables it.
+- The plugin reads `api_url` from `$XDG_CONFIG_HOME/noctalia/media.json`, falls back to the previous `http://127.0.0.1:26538/api/v1` default, and tolerates a missing or malformed config.
+- Removed the personal `/home/dion` cache fallback; `HOME` is now required and every code path uses `HOME` plus XDG variables.
+- Shipped `defaults/noctalia/media.json` with a comment that users must run their own compatible service.
+- Added asset checks for the five plugin files, the manifest, the default JSON, and personal-path scans; suite is now 137 tests.
+
 ## 2026-11-15 — Profile and cheatsheet plugins
 
 - Ported the activity switch to `plugins/profile/` as `rice/profile:bar`; it reads activity ids from `$XDG_STATE_HOME/rice/runtime.json` and calls `rice activity work|private` through argv.
