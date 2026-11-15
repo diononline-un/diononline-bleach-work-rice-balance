@@ -1,0 +1,20 @@
+# Wallpaper metadata only. The repository never ships image binaries.
+#
+# Each [[wallpaper]] entry describes a locally supplied file:
+#   id      stable identifier used by the installer and configuration
+#   file    filename inside the user's wallpaper directory
+#   source  public attribution link for the original artwork
+#   artist  credited artist or author
+#   license personal-use terms; redistribution is not implied
+#   sha256  optional integrity hash of the local file; empty means unset
+#
+# The entry below is a placeholder. Replace it with entries for your own
+# licensed files; do not commit the images themselves.
+
+[[wallpaper]]
+id = "example"
+file = "example.png"
+source = "https://example.invalid/source"
+artist = "Example Artist"
+license = "private-personal-use-only"
+sha256 = ""
