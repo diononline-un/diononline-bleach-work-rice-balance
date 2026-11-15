@@ -12,9 +12,9 @@ PATTERNS = [
 ]
 SKIP_PARTS = {".git", ".venv", ".superpowers", ".worktrees"}
 SKIP_PREFIXES = ("docs/superpowers", "assets/wallpapers")
-# This test itself and the public-safety denylist fixture contain the marker
-# literals on purpose.
-SKIP_NAMES = {"test_pii.py", "test_apps.py"}
+# This test itself contains the marker literals on purpose; fixture files build
+# their denylist markers by concatenation so they stay scannable.
+SKIP_NAMES = {"test_pii.py"}
 SCANNED_SUFFIXES = {".md", ".py", ".toml", ".sh", ".js", ".in"}
 MANIFEST = ROOT / "assets/wallpapers/manifest.toml"
 PROJECT_URL = "https://github.com/diononline-un/diononline-bleach-work-rice-balance"

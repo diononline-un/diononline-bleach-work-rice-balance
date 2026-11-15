@@ -86,11 +86,13 @@ def _widget_anchor(config: dict, widget: dict) -> dict:
         "type": widget["plugin"],
         "output": output["connector"],
         "cx": round(
-            output.get("x", 0) + output.get("width", 0) * (zone["x"] + zone["w"] / 2),
+            output.get("x", 0)
+            + output.get("width", 0) * (zone.get("x", 0) + zone.get("w", 0) / 2),
             1,
         ),
         "cy": round(
-            output.get("y", 0) + output.get("height", 0) * (zone["y"] + zone["h"] / 2),
+            output.get("y", 0)
+            + output.get("height", 0) * (zone.get("y", 0) + zone.get("h", 0) / 2),
             1,
         ),
         "scale": widget.get("scale", 1.0),

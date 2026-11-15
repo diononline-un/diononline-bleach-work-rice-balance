@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Review fixes for core branch
+
+- Made the triple layout pick the two non-primary outputs by identity and raise `ValueError` when fewer than two exist, so KScreen output order no longer misassigns zones.
+- Added a CLI error boundary that prints `rice: <message>` and returns 1 for operational errors instead of a traceback.
+- Added the MIT `LICENSE` and removed unused `rice.config` path imports; config path now comes from `rice.paths`.
+- Dropped phantom app ids from default placements and made widget anchors default missing zone geometry.
+- Tightened the PII gate so `tests/test_apps.py` stays scanned by building its denylist markers through concatenation.
+
 ## 2026-11-15 — Core runtime and installer
 
 - Added KWin placement rules, fullscreen reporting, and the `org.rice.Rice` D-Bus daemon.

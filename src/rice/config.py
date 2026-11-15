@@ -6,8 +6,6 @@ from pathlib import Path
 
 import tomli_w
 
-from .paths import config_path, data_home
-
 REQUIRED_TOP_LEVEL = ("meta", "output", "zone", "app", "placement", "activities")
 
 

@@ -222,7 +222,7 @@ that the integration test uses. To inspect it:
 
 ```bash
 PYTHONPATH="${XDG_DATA_HOME:-$HOME/.local/share}/rice/src" python3 -c \
-  'from rice.apply import apply_config; from rice.config import config_path; \
+  'from rice.apply import apply_config; from rice.paths import config_path; \
 print(*apply_config(config_path(), dry_run=True).changed, sep="\n")'
 ```
 

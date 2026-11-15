@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from rice.generate import (
+    _widget_anchor,
     generate_kwin,
     generate_noctalia,
     generate_runtime,
@@ -128,6 +129,15 @@ def test_noctalia_without_widgets_is_still_valid_toml():
     data = tomllib.loads(generate_noctalia(config))
     assert data["desktop_widgets"]["widget_order"] == []
     assert data["desktop_widgets"]["widget"] == {}
+
+
+def test_widget_anchor_defaults_missing_geometry_fields():
+    config = {
+        "output": [{"id": "main", "connector": "DP-1", "width": 1000, "height": 500}],
+        "zone": [{"id": "bare", "output": "main"}],
+    }
+    anchor = _widget_anchor(config, {"plugin": "clock", "zone": "bare"})
+    assert (anchor["cx"], anchor["cy"]) == (0.0, 0.0)
 
 
 def test_runtime_contains_startup_and_zones():

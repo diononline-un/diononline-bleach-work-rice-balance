@@ -23,12 +23,25 @@ def layout_config(preset: str, outputs: list[Output]) -> dict:
             _zone("edge-right", main.id, "shell", 0.80, 0.0, 0.20, 1.0),
         ]
     elif preset == "triple":
+        # KScreen does not guarantee that the primary output is first, so pick
+        # the secondaries by identity instead of by list position.
+        secondary = [
+            output
+            for output in outputs
+            if output is not main and output.connector != main.connector
+        ]
+        if len(secondary) < 2:
+            raise ValueError(
+                "triple layout requires at least two non-primary outputs "
+                f"(got {len(secondary)})"
+            )
+        side, portrait = secondary[0], secondary[1]
         zones = [
             _zone("main-left", main.id, "app", 0.0, 0.0, 0.5, 1.0),
             _zone("main-right", main.id, "app", 0.5, 0.0, 0.5, 1.0),
-            _zone("side-left", outputs[1].id, "app", 0.0, 0.0, 0.5, 1.0),
-            _zone("side-right", outputs[1].id, "app", 0.5, 0.0, 0.5, 1.0),
-            _zone("portrait-full", outputs[2].id, "app", 0.0, 0.0, 1.0, 1.0),
+            _zone("side-left", side.id, "app", 0.0, 0.0, 0.5, 1.0),
+            _zone("side-right", side.id, "app", 0.5, 0.0, 0.5, 1.0),
+            _zone("portrait-full", portrait.id, "app", 0.0, 0.0, 1.0, 1.0),
         ]
     else:
         zones = [
@@ -67,8 +80,6 @@ def default_placements(preset: str, apps: dict) -> list[dict]:
         "terminal": ("private_side", False),
         "gpu-recorder": ("private_side", False),
         "discord": ("portrait", True),
-        "slack": ("portrait", True),
-        "hero-town": ("work_side", False),
     }
     for app_id, entry in apps.items():
         if app_id not in mapping:

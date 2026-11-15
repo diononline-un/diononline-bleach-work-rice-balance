@@ -63,3 +63,20 @@ def test_doctor_returns_zero_when_healthy(monkeypatch, capsys):
 
     assert cli.run_doctor(None) == 0
     assert capsys.readouterr().out.strip() == "rice doctor: OK"
+
+
+def test_main_reports_operational_errors_without_traceback(monkeypatch, capsys):
+    from rice import apply, cli
+
+    def fail(path, dry_run=False):
+        raise ValueError("bad config")
+
+    monkeypatch.setattr(apply, "apply_config", fail)
+
+    assert cli.main(["apply"]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.err.strip() == "rice: bad config"
+    assert "bad config" in captured.err
+    assert "Traceback" not in captured.err
+    assert "Traceback" not in captured.out

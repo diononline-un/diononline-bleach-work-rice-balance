@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 
 from . import __version__
 from .paths import state_home
@@ -7,7 +8,7 @@ from .paths import state_home
 
 def run_apply(args):
     from .apply import apply_config
-    from .config import config_path
+    from .paths import config_path
 
     apply_config(config_path(), dry_run=args.dry_run)
     return 0
@@ -29,8 +30,9 @@ def run_startup_command(args):
 def run_doctor(args):
     import shutil
 
-    from .config import config_path, load_config, validate_config
+    from .config import load_config, validate_config
     from .outputs import detect_outputs
+    from .paths import config_path
 
     errors = []
     if not shutil.which("noctalia"):
@@ -124,7 +126,13 @@ def main(argv=None):
     if not getattr(args, "command", None):
         parser.print_help()
         return 0
-    return args.func(args) or 0
+    try:
+        return args.func(args) or 0
+    except (ValueError, FileNotFoundError, RuntimeError, KeyError, OSError) as exc:
+        # Operational failures reach the user as one clean line. argparse keeps
+        # its own SystemExit handling for usage errors.
+        print(f"rice: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
