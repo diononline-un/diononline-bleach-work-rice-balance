@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Core hardening and release hygiene
+
+- Fixed triple-monitor layout selection so side and portrait zones use the two non-primary outputs regardless of KScreen order.
+- Added clean CLI error reporting for validation, runtime, and missing-file failures.
+- Added the MIT license and tightened the PII gate so application-catalog tests are scanned without whole-file exclusions.
+- Removed dead placement ids and unused config imports; hardened widget-anchor defaults.
+- Core branch is ready for integration; Noctalia bar/plugins, shortcuts, and the web configurator remain follow-up plans.
+
 ## 2026-11-15 — Review fixes for core branch
 
 - Made the triple layout pick the two non-primary outputs by identity and raise `ValueError` when fewer than two exist, so KScreen output order no longer misassigns zones.
