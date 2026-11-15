@@ -73,6 +73,12 @@ def run_daemon(args):
     return 0
 
 
+def run_config(args):
+    from .web import run_server
+
+    return run_server(open_browser=not args.no_browser)
+
+
 def run_cheatsheet(args):
     subprocess.run(
         ["noctalia", "msg", "panel-toggle", CHEATSHEET_PANEL], check=True
@@ -192,6 +198,12 @@ def main(argv=None):
 
     daemon_parser = sub.add_parser("daemon", help="run the rice D-Bus daemon")
     daemon_parser.set_defaults(func=run_daemon)
+
+    config_parser = sub.add_parser(
+        "config", help="launch the local web configurator"
+    )
+    config_parser.add_argument("--no-browser", action="store_true")
+    config_parser.set_defaults(func=run_config)
 
     cheatsheet_parser = sub.add_parser(
         "cheatsheet", help="toggle the shortcut cheatsheet panel"

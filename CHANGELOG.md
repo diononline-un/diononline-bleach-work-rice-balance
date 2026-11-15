@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Local web configurator API
+
+- Added `src/rice/web.py`: a loopback `ThreadingHTTPServer` exposing `/api/health`, `/api/state`, `/api/outputs`, `/api/config`, `/api/validate`, `/api/apply`, `/api/backup`, and `/api/restore`, all gated by a `Bearer` token with `hmac.compare_digest`.
+- Config writes go through the existing atomic `save_config`; apply is the only action and runs the injected `apply_func`, so the API never shells out.
+- Backups land under `$XDG_STATE_HOME/rice/web-backups/<timestamp>/rice.toml`; restore only accepts paths inside that root.
+- Added `rice config` (`--no-browser`) and the `bin/rice-config` wrapper, both lazy-importing web so CLI help never loads dbus.
+- Suite is now 183 tests.
+
 ## 2026-11-15 — Shortcut cleanup and cheatsheet sync
 
 - Switched `rice shortcuts disable-conflicts` to the Plasma 6 `setForeignShortcutKeys` call (2-element action id plus an empty `a(ai)` key list), keeping a `setForeignShortcut` fallback for older Plasma and a concise stderr warning when retries fail.
