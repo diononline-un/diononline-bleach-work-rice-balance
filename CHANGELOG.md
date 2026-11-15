@@ -7,6 +7,7 @@
 - Removed the personal `/home/dion` cache fallback; `HOME` is now required and every code path uses `HOME` plus XDG variables.
 - Shipped `defaults/noctalia/media.json` with a comment that users must run their own compatible service.
 - Added asset checks for the five plugin files, the manifest, the default JSON, and personal-path scans; suite is now 137 tests.
+- Translated the remaining German panel strings (tooltips, queue labels, empty and error states) to English and added a regression test, raising the suite to 138 tests.
 
 ## 2026-11-15 — Profile and cheatsheet plugins
 

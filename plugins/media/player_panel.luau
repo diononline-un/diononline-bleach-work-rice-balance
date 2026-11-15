@@ -53,7 +53,7 @@ local function header()
       ui.glyph({ name = "music", size = 20, color = "primary" }),
       ui.label({ text = "YouTube Music", fontSize = 14, fontWeight = "semibold", color = "on_surface_variant" }),
     }),
-    ui.button({ glyph = "x", variant = "ghost", tooltip = "Schließen", onClick = "closePanel" }),
+    ui.button({ glyph = "x", variant = "ghost", tooltip = "Close", onClick = "closePanel" }),
   })
 end
 
@@ -62,7 +62,7 @@ local function render()
   if s == nil or s.available ~= true then
     panel.render(ui.column({ flexGrow = 1, gap = 18, align = "center", justify = "center" }, {
       header(),
-      ui.label({ text = "YouTube Music ist nicht aktiv.", fontSize = 18, color = "on_surface_variant" }),
+      ui.label({ text = "YouTube Music is not active.", fontSize = 18, color = "on_surface_variant" }),
     }))
     return
   end

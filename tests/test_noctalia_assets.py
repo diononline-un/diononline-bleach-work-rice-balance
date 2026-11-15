@@ -126,3 +126,21 @@ def test_media_default_config_is_valid_json_with_api_url():
     assert "_comment" in data
     assert "optional" in data["_comment"].lower() or "opt-in" in data["_comment"].lower()
     assert "rice/media" not in CONFIG.read_text(encoding="utf-8")
+
+
+def test_media_plugin_user_facing_strings_are_english():
+    german_markers = (
+        "Schließen",
+        "Warteschlange",
+        "Queue neu laden",
+        "Lade Queue",
+        "Queue ist leer",
+        "Als Nächstes",
+        "Queue nicht erreichbar",
+        "Queue konnte nicht gelesen werden",
+        "YouTube Music ist nicht aktiv",
+    )
+    for path in sorted(MEDIA_PLUGIN.glob("*.luau")):
+        text = path.read_text(encoding="utf-8")
+        for marker in german_markers:
+            assert marker not in text, f"German UI string {marker!r} in {path.name}"

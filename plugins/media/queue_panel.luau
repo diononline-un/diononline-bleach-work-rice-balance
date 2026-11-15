@@ -16,11 +16,11 @@ local function render()
     ui.row({ width = 398, align = "center", justify = "space_between" }, {
       ui.row({ gap = 8, align = "center" }, {
         ui.glyph({ name = "chart-bar", size = 20, color = "primary" }),
-        ui.label({ text = "Warteschlange", fontSize = 17, fontWeight = "bold", color = "on_surface" }),
+        ui.label({ text = "Queue", fontSize = 17, fontWeight = "bold", color = "on_surface" }),
       }),
       ui.row({ gap = 6, align = "center" }, {
-        ui.button({ glyph = "refresh", variant = "ghost", tooltip = "Queue neu laden", onClick = "onRefresh" }),
-        ui.button({ glyph = "x", variant = "ghost", tooltip = "Schließen", onClick = "onClose" }),
+        ui.button({ glyph = "refresh", variant = "ghost", tooltip = "Reload queue", onClick = "onRefresh" }),
+        ui.button({ glyph = "x", variant = "ghost", tooltip = "Close", onClick = "onClose" }),
       }),
     }),
   }
@@ -43,11 +43,11 @@ local function render()
   end
 
   if loading then
-    table.insert(children, ui.label({ text = "Lade Queue …", fontSize = 14, color = "on_surface_variant" }))
+    table.insert(children, ui.label({ text = "Loading queue...", fontSize = 14, color = "on_surface_variant" }))
   elseif #items == 0 then
-    table.insert(children, ui.label({ text = lastError ~= "" and lastError or "Queue ist leer.", fontSize = 14, color = "on_surface_variant" }))
+    table.insert(children, ui.label({ text = lastError ~= "" and lastError or "Queue is empty.", fontSize = 14, color = "on_surface_variant" }))
   else
-    table.insert(children, ui.label({ text = "Als Nächstes", fontSize = 11, fontWeight = "bold", color = "on_surface_variant" }))
+    table.insert(children, ui.label({ text = "Up next", fontSize = 11, fontWeight = "bold", color = "on_surface_variant" }))
     for index, item in ipairs(items) do
       local active = item.selected
       table.insert(children, ui.row({
@@ -79,14 +79,14 @@ local function fetch()
     loading = false
     if not response.ok or response.status < 200 or response.status >= 300 then
       items = {}
-      lastError = "Queue nicht erreichbar."
+      lastError = "Queue is unavailable."
       render()
       return
     end
     local ok, data = pcall(noctalia.json.decode, response.body)
     if not ok or type(data) ~= "table" or type(data.items) ~= "table" then
       items = {}
-      lastError = "Queue konnte nicht gelesen werden."
+      lastError = "Could not read the queue."
       render()
       return
     end
@@ -121,7 +121,7 @@ local function fetch()
   end)
   if not accepted then
     loading = false
-    lastError = "Queue nicht erreichbar."
+    lastError = "Queue is unavailable."
     render()
   end
 end
