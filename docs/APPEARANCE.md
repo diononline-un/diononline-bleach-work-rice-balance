@@ -23,16 +23,15 @@ and reloads KWin. `remove` removes only groups prefixed with
 
 | Applications | Active opacity | Inactive opacity |
 | --- | ---: | ---: |
+| Browsers | 100% | 100% |
 | VS Code, OpenCode | 92% | 86% |
 | Claude, Claude Desktop, Slack, Discord | 94% | 88% |
 | Dolphin | 96% | 92% |
 | Obsidian, Thunderbird | 94% | 88% |
 
-The browser classes (`brave-browser`, `google-chrome`, `chromium`, `firefox`)
-are handled by a small KWin script instead of a rule. Normal browser windows use
-92%/86%, while fullscreen browser windows are forced to 100% opacity so video
-stays solid. Inline video inside a normal browser window still inherits the
-window opacity; KWin cannot isolate a web page's video surface.
+Browsers (`brave-browser`, `google-chrome`, `chromium`, `firefox`) are left fully
+opaque and are not part of the transparency profile. This keeps web pages and
+videos solid.
 
 `steam`, `steam_app_*`, and `gamescope` are forced to 100%. VLC, mpv, Celluloid,
 Haruna, SMPlayer, and YouTube Music are explicitly kept at 100%. The profile
@@ -47,11 +46,10 @@ the two effects.
 
 - The rules make the whole window translucent, including text. Keep values
   above 85–90% for text-heavy apps.
-- Chromium browsers and Electron apps generally do not provide selective
-  background alpha; the KWin rule is the practical option.
+- Browsers are intentionally outside the transparency profile so pages and
+  videos stay solid.
 - Transparent windows look best with a working KWin blur effect. Without blur,
   busy wallpapers can reduce readability.
 - Games, Steam, VLC, mpv, Celluloid, Haruna, SMPlayer, and YouTube Music are deliberately kept opaque.
-- Fullscreen browser video is kept opaque by the browser guard; inline video cannot be isolated from the page.
 - Editing the rules through System Settings may replace the generated groups;
   rerun `rice appearance apply` to restore the rice profile.
