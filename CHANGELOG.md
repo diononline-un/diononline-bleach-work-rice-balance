@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-15 — Refine appearance profile
+
+- Removed browser opacity rules and moved browsers to a KWin guard that forces 100% opacity in fullscreen video.
+- Kept normal browser opacity at 92% active and 86% inactive.
+- Removed YouTube Music from the translucent app list and added VLC, mpv, Celluloid, Haruna, SMPlayer, and YouTube Music to explicit 100% media exceptions.
+- Steam and games remain fully opaque; text editors and the rest of the profile stay unchanged.
+
 ## 2026-11-15 — Fix forced fullscreen in appearance profile
 
 - Removed the generated all-window fullscreen rule from `rice appearance`; it matched every normal window and forced fullscreen after leaving it.
