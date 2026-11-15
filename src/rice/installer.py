@@ -6,7 +6,7 @@ The installer performs four steps:
 1. Preflight the host (Arch/CachyOS, Plasma, graphical session).
 2. Install the required and selected packages with pacman or an AUR helper.
 3. Copy the runtime tree into ``$XDG_DATA_HOME/rice`` and write the ``rice``
-   command wrapper into ``~/.local/bin``.
+   and ``rice-config`` command wrappers into ``~/.local/bin``.
 4. Build the initial configuration from detected hardware and apply it.
 
 Tests only exercise the pure planning helpers and the dry-run paths; the
@@ -41,6 +41,13 @@ PLUGIN_NAMES = ("themes", "profile", "cheatsheet", "media")
 PLUGIN_MARKER = ".rice-plugin"
 PLUGIN_MARKER_TEXT = (
     "Installed by rice. This directory is rice-owned and removed by uninstall.\n"
+)
+# Installed command wrappers and the module marker that proves rice wrote the
+# file. Uninstall removes a launcher only when its marker is present, so a user
+# file with the same name survives.
+LAUNCHERS = (
+    ("rice", "rice.cli"),
+    ("rice-config", "rice.web"),
 )
 
 BASE_PACKAGES = [
@@ -131,6 +138,9 @@ def install_tree(repo: Path, data_dir: Path, bin_dir: Path, dry_run=False):
         repo / "src/rice", install_root / "src/rice", dirs_exist_ok=True, ignore=ignore
     )
     shutil.copytree(
+        repo / "src/web", install_root / "src/web", dirs_exist_ok=True, ignore=ignore
+    )
+    shutil.copytree(
         repo / "templates", install_root / "templates", dirs_exist_ok=True, ignore=ignore
     )
     shutil.copytree(
@@ -143,16 +153,17 @@ def install_tree(repo: Path, data_dir: Path, bin_dir: Path, dry_run=False):
         shutil.copytree(plugin, target, dirs_exist_ok=True)
         (target / PLUGIN_MARKER).write_text(PLUGIN_MARKER_TEXT, encoding="utf-8")
     bin_dir.mkdir(parents=True, exist_ok=True)
-    wrapper = bin_dir / "rice"
-    wrapper.write_text(
-        "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
-        'RICE_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/rice"\n'
-        'export PYTHONPATH="$RICE_DATA/src${PYTHONPATH:+:$PYTHONPATH}"\n'
-        'exec python3 -m rice.cli "$@"\n',
-        encoding="utf-8",
-    )
-    wrapper.chmod(0o755)
+    for name, module in LAUNCHERS:
+        launcher = bin_dir / name
+        launcher.write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            'RICE_DATA="${XDG_DATA_HOME:-$HOME/.local/share}/rice"\n'
+            'export PYTHONPATH="$RICE_DATA/src${PYTHONPATH:+:$PYTHONPATH}"\n'
+            f'exec python3 -m {module} "$@"\n',
+            encoding="utf-8",
+        )
+        launcher.chmod(0o755)
     return install_root
 
 
@@ -324,16 +335,17 @@ def _remove(target: Path, dry_run: bool) -> None:
         target.unlink()
 
 
-def _remove_wrapper(bin_dir: Path, dry_run: bool) -> None:
-    wrapper = Path(bin_dir) / "rice"
-    if not wrapper.is_file():
-        return
-    try:
-        owned = "rice.cli" in wrapper.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        owned = False
-    if owned:
-        _remove(wrapper, dry_run)
+def _remove_launchers(bin_dir: Path, dry_run: bool) -> None:
+    for name, marker in LAUNCHERS:
+        launcher = Path(bin_dir) / name
+        if not launcher.is_file():
+            continue
+        try:
+            owned = marker in launcher.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            owned = False
+        if owned:
+            _remove(launcher, dry_run)
 
 
 def _is_generated_noctalia(path: Path) -> bool:
@@ -434,7 +446,7 @@ def uninstall(dry_run=False, runner=None):
         _remove(target, dry_run)
     _remove_noctalia_plugins(dry_run)
     _uninstall_noctalia_config(config_home() / "noctalia" / "config.toml", dry_run)
-    _remove_wrapper(Path.home() / ".local/bin", dry_run)
+    _remove_launchers(Path.home() / ".local/bin", dry_run)
 
 
 def main(argv=None):

@@ -89,4 +89,19 @@ def validate_config(config: dict) -> list[str]:
             if app_id not in app_ids:
                 errors.append(f"autostart.{role} references unknown app {app_id}")
 
+    widgets = config.get("desktop_widget", [])
+    if not isinstance(widgets, list):
+        errors.append("desktop_widget must be a list")
+        widgets = []
+    for widget in widgets:
+        if not isinstance(widget, dict):
+            errors.append("desktop_widget entries must be objects")
+            continue
+        if not widget.get("plugin"):
+            errors.append("desktop_widget has empty plugin")
+        if widget.get("zone") not in zone_ids:
+            errors.append(
+                f"desktop_widget references unknown zone {widget.get('zone')}"
+            )
+
     return errors

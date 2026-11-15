@@ -15,7 +15,18 @@ SKIP_PREFIXES = ("docs/superpowers", "assets/wallpapers")
 # This test itself contains the marker literals on purpose; fixture files build
 # their denylist markers by concatenation so they stay scannable.
 SKIP_NAMES = {"test_pii.py"}
-SCANNED_SUFFIXES = {".md", ".py", ".toml", ".sh", ".js", ".in", ".luau", ".json"}
+SCANNED_SUFFIXES = {
+    ".md",
+    ".py",
+    ".toml",
+    ".sh",
+    ".js",
+    ".in",
+    ".luau",
+    ".json",
+    ".html",
+    ".css",
+}
 MANIFEST = ROOT / "assets/wallpapers/manifest.toml"
 PROJECT_URL = "https://github.com/diononline-un/diononline-bleach-work-rice-balance"
 DOCUMENTATION = {
@@ -30,6 +41,7 @@ DOCUMENTATION = {
     "docs/TROUBLESHOOTING.md",
     "docs/NOCTALIA.md",
     "docs/SHORTCUTS.md",
+    "docs/CONFIGURATOR.md",
 }
 PLACEHOLDER_MARKERS = ("lorem ipsum", "todo", "tbd", "fixme")
 
@@ -75,6 +87,20 @@ def test_plugin_and_noctalia_sources_are_scanned():
                 if any(pattern.search(line) for pattern in PATTERNS)
             ]
             assert not hits, f"personal data candidates in {relative}: {hits}"
+
+
+def test_web_assets_are_scanned():
+    for name in ("index.html", "style.css", "app.js"):
+        path = ROOT / "src" / "web" / name
+        assert path.is_file(), f"missing web asset: {name}"
+        assert path.suffix in SCANNED_SUFFIXES, f"web asset not scanned: {name}"
+        assert not _skip(path), f"web asset skipped by the scan: {name}"
+        hits = [
+            line
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if any(pattern.search(line) for pattern in PATTERNS)
+        ]
+        assert not hits, f"personal data candidates in src/web/{name}: {hits}"
 
 
 def test_wallpaper_manifest_is_metadata_only():

@@ -1,4 +1,7 @@
+import os
 import stat
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -217,6 +220,8 @@ def test_build_initial_config_rejects_invalid_choices(monkeypatch):
 def _make_repo(root: Path, plugins: bool = False) -> Path:
     (root / "src/rice").mkdir(parents=True)
     (root / "src/rice/__init__.py").write_text("", encoding="utf-8")
+    (root / "src/web").mkdir(parents=True)
+    (root / "src/web/index.html").write_text("ok", encoding="utf-8")
     (root / "templates/systemd").mkdir(parents=True)
     (root / "templates/systemd/unit.in").write_text("unit\n", encoding="utf-8")
     (root / "defaults").mkdir()
@@ -250,6 +255,71 @@ def test_install_tree_copies_tree_without_plugins(tmp_path: Path):
     assert "XDG_DATA_HOME" in text
     assert "/home/" not in text
     assert wrapper.stat().st_mode & stat.S_IXUSR
+
+
+def test_install_tree_copies_web_assets(tmp_path: Path):
+    repo = _make_repo(tmp_path / "repo")
+    (repo / "src/web/app.js").write_text("// app\n", encoding="utf-8")
+    (repo / "src/web/style.css").write_text(":root {}\n", encoding="utf-8")
+
+    install_tree(repo, tmp_path / "data", tmp_path / "bin")
+
+    for name in ("index.html", "app.js", "style.css"):
+        assert (tmp_path / "data/rice/src/web" / name).is_file(), name
+
+
+def test_install_tree_installs_rice_and_rice_config_launchers(tmp_path: Path):
+    repo = _make_repo(tmp_path / "repo")
+    bin_dir = tmp_path / "bin"
+
+    install_tree(repo, tmp_path / "data", bin_dir)
+
+    expected = {
+        "rice": "python3 -m rice.cli",
+        "rice-config": "python3 -m rice.web",
+    }
+    for name, module in expected.items():
+        launcher = bin_dir / name
+        text = launcher.read_text(encoding="utf-8")
+        assert module in text, name
+        assert "XDG_DATA_HOME" in text, name
+        assert "/home/" not in text, name
+        assert launcher.stat().st_mode & stat.S_IXUSR, name
+
+
+def test_installed_web_module_resolves_assets_and_catalog(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    install_tree(ROOT, data_dir, tmp_path / "bin")
+
+    env = dict(os.environ, PYTHONPATH=str(data_dir / "rice/src"))
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import rice.web as web; print(web.WEB_ROOT); print(web.CATALOG_PATH)",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    )
+
+    web_root, catalog = result.stdout.split()
+    assert Path(web_root) == data_dir / "rice/src/web"
+    assert (Path(web_root) / "index.html").is_file()
+    assert Path(catalog) == data_dir / "rice/defaults/apps.toml"
+
+
+def test_install_tree_dry_run_writes_no_launchers(tmp_path: Path):
+    repo = _make_repo(tmp_path / "repo")
+    data_dir = tmp_path / "data"
+    bin_dir = tmp_path / "bin"
+
+    install_tree(repo, data_dir, bin_dir, dry_run=True)
+
+    assert not (data_dir / "rice").exists()
+    assert not (bin_dir / "rice").exists()
+    assert not (bin_dir / "rice-config").exists()
 
 
 def test_install_tree_copies_plugins_when_present(tmp_path: Path):
@@ -293,6 +363,8 @@ def test_real_repo_plugins_and_noctalia_base_are_copied(tmp_path: Path):
 
     assert (install_root / "defaults/noctalia/config.toml").is_file()
     assert (install_root / "defaults/noctalia/media.json").is_file()
+    for asset in ("index.html", "app.js", "style.css"):
+        assert (install_root / "src/web" / asset).is_file(), asset
     for template in (ROOT / "templates").rglob("*"):
         if template.is_file():
             installed = install_root / "templates" / template.relative_to(ROOT / "templates")
@@ -441,6 +513,52 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
     assert (config / "systemd/user/other.service").is_file()
     assert not wrapper.exists()
     assert (wallpapers / "keep.png").is_file()
+
+
+def test_uninstall_removes_rice_config_launcher_and_web_assets(
+    tmp_path: Path, monkeypatch
+):
+    home = tmp_path / "home"
+    data = tmp_path / "data"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("XDG_DATA_HOME", str(data))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+    bin_dir = home / ".local/bin"
+    bin_dir.mkdir(parents=True)
+    rice_launcher = bin_dir / "rice"
+    rice_launcher.write_text("exec python3 -m rice.cli \"$@\"\n", encoding="utf-8")
+    config_launcher = bin_dir / "rice-config"
+    config_launcher.write_text("exec python3 -m rice.web \"$@\"\n", encoding="utf-8")
+    web_asset = data / "rice/src/web/index.html"
+    web_asset.parent.mkdir(parents=True)
+    web_asset.write_text("ok", encoding="utf-8")
+    (data / "rice/src/rice").mkdir(parents=True)
+
+    uninstall(runner=lambda command: None)
+
+    assert not rice_launcher.exists()
+    assert not config_launcher.exists()
+    assert not (data / "rice").exists()
+
+
+def test_uninstall_keeps_user_rice_config_launcher(tmp_path: Path, monkeypatch):
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+    bin_dir = home / ".local/bin"
+    bin_dir.mkdir(parents=True)
+    user_launcher = bin_dir / "rice-config"
+    user_launcher.write_text("#!/bin/sh\necho my own configurator\n", encoding="utf-8")
+
+    uninstall(runner=lambda command: None)
+
+    assert user_launcher.is_file()
+    assert "my own configurator" in user_launcher.read_text(encoding="utf-8")
 
 
 def test_uninstall_keeps_hand_written_noctalia_config(tmp_path: Path, monkeypatch):

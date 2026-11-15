@@ -1,5 +1,56 @@
 # Changelog
 
+## 2026-11-15 — Configurator save backups and widget validation
+
+- Save and restore now copy the previous `rice.toml` into `$XDG_STATE_HOME/rice/web-backups/<stamp>` before every successful write, reusing the backup timestamp/collision logic; no-op and invalid writes create no backup, and a failed write rolls the fresh backup back and returns JSON 500 instead of dropping the connection.
+- Removing a zone in `src/web/app.js` now also prunes `desktop_widget` entries that reference it, matching the placement cleanup.
+- `validate_config` rejects a `desktop_widget` that is not a list, has an empty `plugin`, or references an unknown zone, so an invalid document cannot be saved.
+- JSON request bodies are capped at 2 MiB with a 413 response.
+- Docs updated in `docs/CONFIGURATOR.md` and `docs/CONFIGURATION.md`. Suite is now 221 tests.
+
+## 2026-11-15 — Configurator packaging, docs, and PR
+
+- `install_tree` now copies `src/web` to `$XDG_DATA_HOME/rice/src/web` and writes an installed `rice-config` launcher next to `rice`; both launchers resolve the runtime through `$XDG_DATA_HOME` instead of the checkout path.
+- Uninstall removes each launcher only when its rice module marker is present, so a user-owned `rice` or `rice-config` file survives, and the installed web assets leave with `$XDG_DATA_HOME/rice`.
+- Added installer tests for web assets, both launchers, installed `WEB_ROOT`/catalog resolution, dry-run behavior, and ownership-aware launcher removal.
+- Added `docs/CONFIGURATOR.md` (start command, token and loopback model, tabs, canvas, validate/save/apply, backup/restore, API, limitations) and linked it from the README.
+- README, `docs/INSTALL.md`, and `docs/ARCHITECTURE.md` describe `rice config`/`rice-config`, the web assets, and the installed paths; `PROJECT_STATUS.md` marks Plan 3 implemented with live verification still open.
+- PII scan now covers `.html` and `.css` and asserts the web assets are scanned. Suite is 210 tests.
+
+## 2026-11-15 — Structured config editors and apply errors
+
+- Apps, Placement, Startup, Autostart, Widgets, Theme, and Outputs tabs now edit `state.config` in place: tables with add/remove rows, selects limited to the configured apps/activities/zones, checkbox lists for startup and autostart, and lazy creation of the `[theme]` table.
+- Apps edit id, name, comma-separated argv, window class, and activities; removing an app also drops its placement, startup, and autostart references.
+- Outputs get a role select (`main`/`side`/`portrait`/`custom`) plus a custom-role field and primary toggle; connectors stay read-only and come from the saved config and detected displays, never a fixed list.
+- Theme gains a wallpaper directory input, a multi-select built from configured and detected connectors, rotation intent, and the same-image/fullscreen/idle flags.
+- Save and Apply now surface PUT validation errors and apply-run failures in the Apply tab and status bar; API errors carry their payload, and Apply still PUTs the config before POSTing `/api/apply`.
+- Replaced the JSON widget/theme editors with the structured forms; removed the JSON editor CSS and added form/table field styles. Suite is now 203 tests.
+
+## 2026-11-15 — Canvas zone editor
+
+- Layout tab now renders one aspect-correct canvas per configured output, using detected width/height when available and 16:9 otherwise; each canvas carries its own accessible label and zones.
+- Zones drag with pointer events and resize through a `.resize-zone` corner handle; geometry snaps to 0.01, clamps to `[0,1]`, enforces a 0.05 minimum, and keeps `x+w`/`y+h` inside the canvas.
+- Added a selected-zone card with `add-zone`/`remove-zone` buttons, kind and gap readout; adding creates a unique `custom-<n>` app zone on the selected output, removing confirms first and drops dependent placement rows.
+- All edits mutate `state.config` only and mark the document dirty; no API call happens until Save or Apply.
+- Added three web asset tests, including drag/resize/add/remove tokens and a per-output canvas check. Suite is now 194 tests.
+
+## 2026-11-15 — Configurator shell and tabs
+
+- Added `src/web/index.html`, `src/web/style.css`, and `src/web/app.js`: dark responsive shell with tabs Apps, Outputs, Layout, Placement, Startup, Autostart, Widgets, Theme, and Apply.
+- `app.js` reads the session token from `?token=`, keeps it in session storage, strips it from the address bar, and sends `Authorization: Bearer` on every API call.
+- Startup loads `/api/state`; tabs show read-only summaries plus JSON editors for widgets and theme. Layout shows a zone preview with selection, ready for canvas editing.
+- Validate, Save, and Apply call `/api/validate`, `PUT /api/config`, and `/api/apply`; buttons disable while busy and a `beforeunload` guard warns about unsaved edits.
+- Replaced the Task 1 "assets absent" check with a static-asset serving test now that the UI exists.
+- Suite is now 191 tests.
+
+## 2026-11-15 — Local web configurator API
+
+- Added `src/rice/web.py`: a loopback `ThreadingHTTPServer` exposing `/api/health`, `/api/state`, `/api/outputs`, `/api/config`, `/api/validate`, `/api/apply`, `/api/backup`, and `/api/restore`, all gated by a `Bearer` token with `hmac.compare_digest`.
+- Config writes go through the existing atomic `save_config`; apply is the only action and runs the injected `apply_func`, so the API never shells out.
+- Backups land under `$XDG_STATE_HOME/rice/web-backups/<timestamp>/rice.toml`; restore only accepts paths inside that root.
+- Added `rice config` (`--no-browser`) and the `bin/rice-config` wrapper, both lazy-importing web so CLI help never loads dbus.
+- Suite is now 183 tests.
+
 ## 2026-11-15 — Shortcut cleanup and cheatsheet sync
 
 - Switched `rice shortcuts disable-conflicts` to the Plasma 6 `setForeignShortcutKeys` call (2-element action id plus an empty `a(ai)` key list), keeping a `setForeignShortcut` fallback for older Plasma and a concise stderr warning when retries fail.

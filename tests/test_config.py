@@ -40,6 +40,33 @@ def test_validate_rejects_unknown_zone_reference():
     assert any("unknown zone" in error for error in errors)
 
 
+def test_validate_accepts_valid_widget():
+    config = deepcopy(VALID)
+    config["desktop_widget"] = [{"plugin": "clock", "zone": "left", "scale": 1.0}]
+    assert validate_config(config) == []
+
+
+def test_validate_rejects_widget_with_unknown_zone():
+    config = deepcopy(VALID)
+    config["desktop_widget"] = [{"plugin": "clock", "zone": "missing"}]
+    errors = validate_config(config)
+    assert any("unknown zone" in error for error in errors)
+
+
+def test_validate_rejects_widget_with_empty_plugin():
+    config = deepcopy(VALID)
+    config["desktop_widget"] = [{"plugin": "", "zone": "left"}]
+    errors = validate_config(config)
+    assert any("plugin" in error for error in errors)
+
+
+def test_validate_rejects_widgets_not_a_list():
+    config = deepcopy(VALID)
+    config["desktop_widget"] = {"plugin": "clock", "zone": "left"}
+    errors = validate_config(config)
+    assert any("must be a list" in error for error in errors)
+
+
 def test_save_and_load_round_trip(tmp_path: Path):
     path = tmp_path / "rice.toml"
     save_config(path, VALID)

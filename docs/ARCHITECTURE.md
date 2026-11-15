@@ -22,6 +22,7 @@ files into XDG directories.
 | `rice.daemon` | Expose session actions over the user D-Bus. |
 | `rice.shortcuts` | Clear KDE global shortcuts that collide with the rice bindings. |
 | `rice.installer` | Preflight, package planning, runtime copy, initial config, uninstall. |
+| `rice.web` | Loopback HTTP server and JSON API for the browser configurator. |
 | `rice.cli` | The `rice` command surface. |
 
 ## Data Flow
@@ -49,8 +50,8 @@ KWin script, merged Noctalia config, user units, runtime JSON
 ```
 
 The installer is the only component that composes a new configuration from
-hardware detection and user choices. The CLI and future configurator operate on
-an existing configuration.
+hardware detection and user choices. The CLI and the browser configurator both
+operate on an existing configuration.
 
 ## Generated Artifacts
 
@@ -214,10 +215,43 @@ does not write logs of its own; inspect it with the user journal.
 | `$XDG_STATE_HOME/rice/runtime.json` | persistent | Generated runtime document. |
 | `$XDG_STATE_HOME/rice/theme-current` | persistent | Last wallpaper path, used to avoid repeats. |
 | `$XDG_STATE_HOME/rice/backups/<timestamp>/` | persistent | Pre-overwrite file copies. |
+| `$XDG_STATE_HOME/rice/web-backups/<timestamp>/` | persistent | Configurator copies of `rice.toml`. |
 | `$XDG_RUNTIME_DIR/rice/*.done` | login session | Startup and autostart deduplication markers. |
 
 Runtime markers disappear when the session ends, which is why autostart runs
 once per login rather than once per machine boot.
+
+## Web Configurator
+
+`rice.web` runs a `ThreadingHTTPServer` on `127.0.0.1` with a random port and a
+per-start bearer token from `secrets.token_urlsafe(32)`. `rice config` and the
+installed `rice-config` wrapper both call `run_server`; the CLI subcommand only
+lazily imports the module so `rice --help` never loads the HTTP stack.
+
+The handler has three layers.
+
+1. `do_GET`, `do_PUT`, and `do_POST` route by path against a fixed table.
+2. `_require_auth` compares the `Authorization: Bearer` value with
+   `hmac.compare_digest` and returns 401 on mismatch.
+3. Endpoint methods reuse `rice.config.load_config`, `validate_config`, and
+   `save_config`, plus the injected `apply_func` (default `apply_config`), so
+   the configurator cannot diverge from the CLI.
+
+Static files come from `WEB_ROOT`, which resolves to `src/web` in both the
+checkout and the installed tree, because the installer copies that directory
+next to `src/rice`. `STATIC_FILES` is an explicit allowlist mapping, so no
+request path reaches the filesystem unchecked. The three assets have no
+external references.
+
+`/api/backup` copies `rice.toml` into
+`$XDG_STATE_HOME/rice/web-backups/<timestamp>/`. `/api/restore` resolves the
+requested path and requires it to sit inside that root before loading and
+validating it. Apply stays a separate call, so a restore never triggers a
+runtime reload on its own.
+
+The API never executes a command from the document. Application commands stay
+argv arrays, and the only side effects are the file writes and reload commands
+that `apply_config` already performs.
 
 ## Failure Model
 
@@ -234,8 +268,8 @@ once per login rather than once per machine boot.
 
 ## Future Work
 
-The local web configurator (plan three) is the remaining component. It is
-expected to consume the same configuration and apply pipeline rather than
-introducing a second source of truth. The core pipeline is deliberately file
-based so the configurator can reuse it. Live verification of the Noctalia Luau
-plugins and the KWin bindings remains a release task.
+The three plans are implemented. Live verification remains: the Noctalia Luau
+plugins, the KWin bindings, the installer and uninstall restore path on a clean
+Arch/CachyOS target, and the configurator canvas in a real browser. The core
+pipeline is deliberately file based so each surface reuses the same
+configuration and apply code path.
