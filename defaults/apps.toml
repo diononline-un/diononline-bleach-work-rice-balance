@@ -1,0 +1,115 @@
+# Application catalog used by the installer.
+#
+# Every slot is a single-choice group, so the installer asks for one variant per
+# slot. "toggles" holds optional applications that are enabled with a boolean
+# choice. A variant resolves to a stable app id: the slots map to
+# "work-browser", "private-browser", "claude" and "terminal"; toggles map to
+# their name with underscores replaced by dashes.
+#
+# Each entry carries a package name (Arch/CachyOS), the argv the installer
+# writes into the generated configuration, the KWin window class for placement
+# rules, the activities the app belongs to, and whether the package is
+# optional. Commands are argv arrays and never pass through a shell.
+
+[work_browser.chrome]
+name = "Google Chrome"
+package = "google-chrome"
+command = ["google-chrome-stable"]
+wm_class = "google-chrome"
+activities = ["work"]
+optional = true
+
+[work_browser.firefox]
+name = "Firefox"
+package = "firefox"
+command = ["firefox"]
+wm_class = "firefox"
+activities = ["work"]
+optional = true
+
+[private_browser.brave]
+name = "Brave"
+package = "brave-bin"
+command = ["brave"]
+wm_class = "brave-browser"
+activities = ["private"]
+optional = true
+
+[private_browser.chromium]
+name = "Chromium"
+package = "chromium"
+command = ["chromium"]
+wm_class = "chromium"
+activities = ["private"]
+optional = true
+
+[claude.desktop]
+name = "Claude Desktop"
+package = "claude-desktop-bin"
+command = ["claude-desktop"]
+wm_class = "claude"
+activities = ["private", "work"]
+optional = true
+
+[claude.code]
+name = "Claude Code"
+package = "claude-code"
+command = ["claude"]
+activities = ["private", "work"]
+optional = true
+
+[terminal.alacritty]
+name = "Alacritty"
+package = "alacritty"
+command = ["alacritty"]
+wm_class = "alacritty"
+activities = ["private", "work"]
+optional = true
+
+[terminal.kitty]
+name = "Kitty"
+package = "kitty"
+command = ["kitty"]
+wm_class = "kitty"
+activities = ["private", "work"]
+optional = true
+
+[toggles.youtube_music]
+name = "YouTube Music"
+package = "youtube-music-bin"
+command = ["youtube-music"]
+wm_class = "com.github.th-ch.youtube-music"
+activities = ["private"]
+optional = true
+
+[toggles.steam]
+name = "Steam"
+package = "steam"
+command = ["steam"]
+wm_class = "steam"
+activities = ["private"]
+optional = true
+
+[toggles.discord]
+name = "Discord"
+package = "discord"
+command = ["discord"]
+wm_class = "discord"
+activities = ["private"]
+optional = true
+
+[toggles.opencode]
+name = "OpenCode"
+package = "opencode-bin"
+command = ["opencode"]
+wm_class = "ai.opencode.desktop"
+activities = ["private", "work"]
+optional = true
+
+[toggles.gpu_recorder]
+name = "GPU Screen Recorder"
+package = "gpu-screen-recorder-ui"
+command = ["gpu-screen-recorder-ui"]
+wm_class = "gpu-screen-recorder-ui"
+activities = ["private", "work"]
+optional = true
