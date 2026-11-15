@@ -424,7 +424,7 @@ git commit -m "feat: add rice config model and validation"
 
 **Interfaces:**
 - Consumes: `rice.paths`, `rice.config`.
-- Produces: `Output(id, connector, width, height, x, y, primary)`; `detect_outputs(json_text: str | None = None) -> list[Output]`; `choose_layout(outputs) -> str`; `layout_config(preset: str, outputs: list[Output]) -> dict`; `list_activities(runner=...) -> dict[str, str]`; `ensure_activity(name, runner=...) -> str`.
+- Produces: `Output(id, connector, width, height, x, y, primary)`; `detect_outputs(json_text: str | None = None) -> list[Output]`; `choose_layout(outputs) -> str`; `layout_config(preset: str, outputs: list[Output]) -> dict`; `default_placements(preset: str, apps: dict) -> list[dict]`; `list_activities(runner=...) -> dict[str, str]`; `ensure_activity(name, runner=...) -> str`.
 
 - [ ] **Step 1: Write failing tests**
 
@@ -619,6 +619,56 @@ def layout_config(preset: str, outputs: list[Output]) -> dict:
             _zone("center-right", main.id, "app", 0.5, 0.0, 0.5, 1.0),
         ]
     return {"zone": zones}
+
+
+def default_placements(preset: str, apps: dict) -> list[dict]:
+    zones = {
+        "triple": {
+            "private": "main-left", "work": "main-left",
+            "private_side": "side-left", "work_side": "side-right",
+            "portrait": "portrait-full",
+        },
+        "ultrawide": {
+            "private": "center-left", "work": "center-left",
+            "private_side": "center-left", "work_side": "center-right",
+            "portrait": "center-right",
+        },
+        "single-split": {
+            "private": "center-left", "work": "center-left",
+            "private_side": "center-left", "work_side": "center-right",
+            "portrait": "center-right",
+        },
+    }[preset]
+    rules = []
+    mapping = {
+        "private-browser": ("private", False),
+        "work-browser": ("work", False),
+        "steam": ("private", False),
+        "youtube-music": ("private_side", False),
+        "claude": ("private_side", False),
+        "opencode": ("private_side", False),
+        "discord": ("portrait", True),
+        "slack": ("portrait", True),
+        "hero-town": ("work_side", False),
+    }
+    for app_id, entry in apps.items():
+        if app_id not in mapping:
+            continue
+        role, fullscreen = mapping[app_id]
+        activities = entry.get("activities") or ["private"]
+        for activity in activities:
+            zone = zones[role]
+            if app_id == "opencode" and activity == "work":
+                zone = zones["work_side"]
+            if app_id == "claude" and activity == "work":
+                zone = zones["work_side"]
+            rules.append({
+                "app": app_id,
+                "activity": activity,
+                "zone": zone,
+                "mode": "fullscreen" if fullscreen else "normal",
+            })
+    return rules
 ```
 
 Create the three preset TOML files with the same zone values. They are documentation and installer defaults; the Python preset is the source used by tests.
@@ -1831,10 +1881,18 @@ def install_tree(repo: Path, data_dir: Path, bin_dir: Path, dry_run=False):
     return install_root
 
 
+def _prune_app_references(config: dict, app_ids: set[str]) -> None:
+    config["startup"]["always"] = [app for app in config["startup"].get("always", []) if app in app_ids]
+    config["startup"]["private"] = [app for app in config["startup"].get("private", []) if app in app_ids]
+    config["placement"] = [item for item in config["placement"] if item["app"] in app_ids]
+    for role, section in config.get("autostart", {}).items():
+        section["apps"] = [app for app in section.get("apps", []) if app in app_ids]
+
+
 def build_initial_config(choices: dict) -> dict:
     from copy import deepcopy
     from .config import load_config
-    from .layouts import choose_layout, layout_config
+    from .layouts import choose_layout, default_placements, layout_config
     from .activities import ensure_activity, list_activities
     from .outputs import detect_outputs
     base = load_config(Path(__file__).resolve().parents[2] / "defaults/rice.toml")
@@ -1848,7 +1906,10 @@ def build_initial_config(choices: dict) -> dict:
          "width": output.width, "height": output.height}
         for output in outputs
     ]
-    base.update(layout_config(choose_layout(outputs), outputs))
+    preset = choose_layout(outputs)
+    base.update(layout_config(preset, outputs))
+    base["placement"] = default_placements(preset, apps)
+    _prune_app_references(base, set(apps))
     known = list_activities()
     for role, name in (("private", "Private"), ("work", "Work")):
         base["activities"][role]["kde_id"] = known.get(name) or ensure_activity(name)
