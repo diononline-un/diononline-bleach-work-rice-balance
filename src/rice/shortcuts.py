@@ -38,25 +38,39 @@ def _empty_shortcut():
 def disable_conflicts(iface=None, empty=None, attempts=30, sleep=None) -> list[str]:
     """Clear the known conflicting KDE actions and return the cleared names.
 
-    KGlobalAccel may not have registered every component yet right after login,
-    so the call retries until the conflicting actions show up. Each cleared
-    action is returned as ``"component:action"``.
+    KGlobalAccel registers its components asynchronously right after login, so
+    a pass can see only the kwin actions before plasmashell has published its
+    own. The loop therefore keeps going until a full pass has observed every
+    wanted action (or the retry budget runs out), instead of stopping as soon
+    as *any* action was cleared. Each cleared action is returned as
+    ``"component:action"``.
     """
     sleep = sleep or time.sleep
     cleared = []
+    seen = set()
+    wanted = {
+        (component, name)
+        for component, names in WANTED.items()
+        for name in names
+    }
     for _ in range(attempts):
         try:
             current = iface if iface is not None else _kglobalaccel()
             empty_sig = empty if empty is not None else _empty_shortcut()
             for component, names in WANTED.items():
                 for action in current.allActionsForComponent([component]):
-                    if str(action[1]) not in names:
+                    name = str(action[1])
+                    if name not in names:
+                        continue
+                    seen.add((component, name))
+                    entry = f"{component}:{name}"
+                    if entry in cleared:
                         continue
                     current.setForeignShortcut(
                         [str(item) for item in action], empty_sig
                     )
-                    cleared.append(f"{component}:{action[1]}")
-            if cleared:
+                    cleared.append(entry)
+            if wanted <= seen:
                 break
         except Exception:
             if iface is not None:

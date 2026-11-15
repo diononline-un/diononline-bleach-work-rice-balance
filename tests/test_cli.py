@@ -249,14 +249,15 @@ def test_disable_conflicts_clears_only_known_actions():
     class FakeIface:
         def allActionsForComponent(self, components):
             component = components[0]
+            # Real Plasma 6 rows are [component, action_id, component_friendly, action_friendly].
             actions = {
                 "kwin": [
-                    ["kwin", "Window Quick Tile Left", "Ctrl+Alt+Left"],
-                    ["kwin", "Unrelated Action", "Ctrl+Alt+X"],
+                    ["kwin", "Window Quick Tile Left", "KWin", "Window Quick Tile Left"],
+                    ["kwin", "Unrelated Action", "KWin", "Unrelated Action"],
                 ],
                 "plasmashell": [
-                    ["plasmashell", "manage activities", "Meta+Tab"],
-                    ["plasmashell", "unrelated shell action", "Ctrl+X"],
+                    ["plasmashell", "manage activities", "Plasma", "Manage Activities"],
+                    ["plasmashell", "unrelated shell action", "Plasma", "Unrelated"],
                 ],
             }
             return actions[component]
@@ -273,9 +274,73 @@ def test_disable_conflicts_clears_only_known_actions():
         "plasmashell:manage activities",
     ]
     assert calls == [
-        (["kwin", "Window Quick Tile Left", "Ctrl+Alt+Left"], []),
-        (["plasmashell", "manage activities", "Meta+Tab"], []),
+        (
+            ["kwin", "Window Quick Tile Left", "KWin", "Window Quick Tile Left"],
+            [],
+        ),
+        (
+            ["plasmashell", "manage activities", "Plasma", "Manage Activities"],
+            [],
+        ),
     ]
+
+
+def test_disable_conflicts_retries_until_every_component_registers():
+    from rice import shortcuts
+
+    calls = []
+    plasmashell_passes = {"count": 0}
+
+    kwin_actions = [
+        ["kwin", "Window Quick Tile Left", "KWin", "Window Quick Tile Left"],
+        ["kwin", "Window Quick Tile Right", "KWin", "Window Quick Tile Right"],
+    ]
+    plasmashell_actions = [
+        ["plasmashell", "manage activities", "Plasma", "Manage Activities"],
+        ["plasmashell", "activate task manager entry 1", "Plasma", "Task 1"],
+        ["plasmashell", "activate task manager entry 2", "Plasma", "Task 2"],
+        ["plasmashell", "activate task manager entry 3", "Plasma", "Task 3"],
+    ]
+
+    class FakeIface:
+        def allActionsForComponent(self, components):
+            component = components[0]
+            if component == "kwin":
+                return kwin_actions
+            plasmashell_passes["count"] += 1
+            # plasmashell has not published its actions on the first full pass.
+            if plasmashell_passes["count"] < 2:
+                return []
+            return plasmashell_actions
+
+        def setForeignShortcut(self, ids, empty):
+            calls.append(ids[1])
+
+    cleared = shortcuts.disable_conflicts(
+        iface=FakeIface(), empty=[], attempts=10, sleep=lambda seconds: None
+    )
+
+    # The first pass cleared only kwin; the loop must continue, not stop, so the
+    # plasmashell actions registered on the second pass are cleared too.
+    assert cleared == [
+        "kwin:Window Quick Tile Left",
+        "kwin:Window Quick Tile Right",
+        "plasmashell:manage activities",
+        "plasmashell:activate task manager entry 1",
+        "plasmashell:activate task manager entry 2",
+        "plasmashell:activate task manager entry 3",
+    ]
+    assert calls == [
+        "Window Quick Tile Left",
+        "Window Quick Tile Right",
+        "manage activities",
+        "activate task manager entry 1",
+        "activate task manager entry 2",
+        "activate task manager entry 3",
+    ]
+    # Exactly two full passes: the second one observes every wanted action and
+    # breaks without re-clearing the kwin actions.
+    assert plasmashell_passes["count"] == 2
 
 
 def test_doctor_reports_problems(monkeypatch, capsys):
