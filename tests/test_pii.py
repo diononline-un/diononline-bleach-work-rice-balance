@@ -17,6 +17,19 @@ SKIP_PREFIXES = ("docs/superpowers", "assets/wallpapers")
 SKIP_NAMES = {"test_pii.py", "test_apps.py"}
 SCANNED_SUFFIXES = {".md", ".py", ".toml", ".sh", ".js", ".in"}
 MANIFEST = ROOT / "assets/wallpapers/manifest.toml"
+PROJECT_URL = "https://github.com/diononline-un/diononline-bleach-work-rice-balance"
+DOCUMENTATION = {
+    "README.md",
+    "docs/INSTALL.md",
+    "docs/CONFIGURATION.md",
+    "docs/ARCHITECTURE.md",
+    "docs/PLACEMENT.md",
+    "docs/STARTUP.md",
+    "docs/THEMING.md",
+    "docs/ASSETS.md",
+    "docs/TROUBLESHOOTING.md",
+}
+PLACEHOLDER_MARKERS = ("lorem ipsum", "todo", "tbd", "fixme")
 
 
 def _skip(path: Path) -> bool:
@@ -70,3 +83,24 @@ def test_manifest_contains_no_personal_data():
     text = MANIFEST.read_text(encoding="utf-8")
     for pattern in PATTERNS:
         assert not pattern.search(text)
+
+
+def test_documentation_exists_and_has_content():
+    for relative in sorted(DOCUMENTATION):
+        path = ROOT / relative
+        assert path.is_file(), f"missing documentation: {relative}"
+        text = path.read_text(encoding="utf-8")
+        assert len(text.splitlines()) >= 40, f"thin documentation: {relative}"
+        assert "## " in text, f"documentation has no sections: {relative}"
+        lowered = text.lower()
+        for marker in PLACEHOLDER_MARKERS:
+            assert marker not in lowered, f"placeholder {marker!r} in {relative}"
+
+
+def test_readme_links_every_document():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert PROJECT_URL in readme
+    for relative in sorted(DOCUMENTATION):
+        if relative == "README.md":
+            continue
+        assert relative in readme, f"README does not link {relative}"
