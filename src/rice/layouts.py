@@ -64,6 +64,8 @@ def default_placements(preset: str, apps: dict) -> list[dict]:
         "youtube-music": ("private_side", False),
         "claude": ("private_side", False),
         "opencode": ("private_side", False),
+        "terminal": ("private_side", False),
+        "gpu-recorder": ("private_side", False),
         "discord": ("portrait", True),
         "slack": ("portrait", True),
         "hero-town": ("work_side", False),
@@ -75,9 +77,7 @@ def default_placements(preset: str, apps: dict) -> list[dict]:
         activities = entry.get("activities") or ["private"]
         for activity in activities:
             zone = zones[role]
-            if app_id == "opencode" and activity == "work":
-                zone = zones["work_side"]
-            if app_id == "claude" and activity == "work":
+            if app_id in {"opencode", "claude", "terminal", "gpu-recorder"} and activity == "work":
                 zone = zones["work_side"]
             rules.append({
                 "app": app_id,

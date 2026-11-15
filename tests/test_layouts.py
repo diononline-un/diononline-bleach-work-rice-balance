@@ -39,6 +39,8 @@ def test_default_placements_reference_preset_zones(preset):
         {
             "private-browser": {"activities": ["private"]},
             "work-browser": {"activities": ["work"]},
+            "terminal": {"activities": ["private", "work"]},
+            "gpu-recorder": {"activities": ["private", "work"]},
             "discord": {"activities": ["private"]},
             "unknown-app": {},
         },
