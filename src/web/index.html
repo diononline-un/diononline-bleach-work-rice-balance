@@ -34,10 +34,15 @@
     </main>
 
     <footer class="actions">
-      <div class="buttons">
-        <button type="button" id="validate">Validate</button>
-        <button type="button" id="save">Save</button>
-        <button type="button" id="apply" class="primary">Apply</button>
+      <div>
+        <div class="buttons">
+          <button type="button" id="validate">Validate</button>
+          <button type="button" id="save">Save</button>
+          <button type="button" id="apply" class="primary">Apply</button>
+        </div>
+        <p class="hint">
+          Edits stay local until you Save or Apply. Closing the tab with unsaved edits asks first.
+        </p>
       </div>
       <span id="status" class="status" role="status" aria-live="polite"></span>
     </footer>

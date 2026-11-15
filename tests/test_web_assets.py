@@ -54,7 +54,7 @@ def test_ui_avoids_html_injection_and_eval():
 
 def test_css_defines_dark_theme_and_layout_classes():
     css = (WEB / "style.css").read_text(encoding="utf-8")
-    for marker in (".canvas", ".zone", "grid-template-columns", "@media", "json-editor"):
+    for marker in (".canvas", ".zone", "grid-template-columns", "@media", "table-wrap", ".input"):
         assert marker in css
     assert "--bg" in css
     assert "font-family" in css
@@ -104,3 +104,65 @@ def test_layout_renders_a_canvas_per_output_with_zone_helpers():
     assert '"custom-" + index' in js
     assert "kind: \"app\"" in js
     assert "gap_px: 8" in js
+
+
+def test_structured_tabs_have_editors():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    for token in (
+        "renderApps",
+        "renderPlacement",
+        "renderStartup",
+        "renderAutostart",
+        "renderWidgets",
+        "renderTheme",
+        "renderOutputs",
+    ):
+        assert f"function {token}(" in js
+
+
+def test_apply_warns_before_leaving_dirty_state():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    assert "beforeunload" in js
+    assert "state.dirty" in js
+
+
+def test_editors_mutate_local_state_only():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    for token in (
+        "state.config.app",
+        "state.config.placement",
+        "state.config.startup",
+        "state.config.autostart",
+        "state.config.desktop_widget",
+        "state.config.theme",
+        "markDirty",
+    ):
+        assert token in js
+    # Editing a field must not go through the network; only Save and Apply do.
+    edit_helper = js.split("function textField(")[1].split("function selectField(")[0]
+    assert "api(" not in edit_helper
+    assert "fetch(" not in edit_helper
+
+
+def test_outputs_editor_offers_roles_and_reads_connectors_from_config():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    for role in ('"main"', '"side"', '"portrait"', '"custom"'):
+        assert role in js
+    assert "ROLE_CHOICES" in js
+    # Connectors are detected at runtime; the UI must not ship a fixed list.
+    for connector in ("DP-1", "HDMI-A-1", "eDP-1", "DP-2"):
+        assert connector not in js
+    assert "state.config.output" in js
+
+
+def test_theme_outputs_are_built_from_configured_outputs():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    assert "themeOutputOptions" in js
+    assert "state.outputs" in js
+    assert "selectedOptions" in js
+
+
+def test_apply_posts_config_before_apply():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    body = js.split("async function applyDocument(")[1].split("\nasync function ")[0]
+    assert body.index("/api/config") < body.index("/api/apply")

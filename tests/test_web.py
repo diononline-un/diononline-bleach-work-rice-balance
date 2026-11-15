@@ -174,3 +174,71 @@ def test_static_path_traversal_is_blocked(server):
     assert status == 404
     status, body = request(server[0], "GET", "/..%2f..%2fetc%2fpasswd", token=None)
     assert status == 404
+
+
+def test_put_config_accepts_structured_editor_document(server):
+    httpd, path = server
+    config = load_config(path)
+    config["app"].append(
+        {
+            "id": "terminal",
+            "name": "Terminal",
+            "command": ["kitty", "--single-instance"],
+            "wm_class": "kitty",
+            "activities": ["work"],
+        }
+    )
+    config["placement"].append(
+        {
+            "app": "terminal",
+            "activity": "work",
+            "zone": "center-right",
+            "mode": "maximized",
+            "priority": 5,
+        }
+    )
+    config["startup"]["always"] = ["terminal"]
+    config["autostart"]["work"] = {"apps": ["terminal"]}
+    config["desktop_widget"] = [
+        {"plugin": "clock", "zone": "center-left", "scale": 1.0}
+    ]
+    config["theme"] = {
+        "wallpaper_dir": "/tmp/wallpapers",
+        "outputs": [config["output"][0]["connector"]],
+        "same_image_all_outputs": True,
+        "rotation": "hourly",
+        "pause_on_fullscreen": True,
+        "pause_on_idle": False,
+    }
+
+    status, body = request(httpd, "PUT", "/api/config", {"config": config})
+    assert status == 200
+    assert load_config(path) == config
+
+    status, body = request(httpd, "POST", "/api/validate", {})
+    assert status == 200
+    assert json.loads(body)["errors"] == []
+
+
+def test_put_config_rejects_empty_command_from_app_editor(server):
+    httpd, path = server
+    before = load_config(path)
+    config = load_config(path)
+    config["app"][0]["command"] = []
+    status, body = request(httpd, "PUT", "/api/config", {"config": config})
+    assert status == 400
+    assert "invalid command argv" in body.decode()
+    assert load_config(path) == before
+
+
+def test_apply_failure_is_reported_as_json_error(server):
+    httpd, path = server
+
+    def fail(config_path, dry_run=False):
+        raise RuntimeError("apply failed: noctalia is not running")
+
+    httpd.apply_func = fail
+    status, body = request(httpd, "POST", "/api/apply", {})
+    assert status == 400
+    assert "apply failed" in body.decode()
+    assert json.loads(body)["error"] == "apply failed: noctalia is not running"

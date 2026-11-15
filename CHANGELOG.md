@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-15 — Structured config editors and apply errors
+
+- Apps, Placement, Startup, Autostart, Widgets, Theme, and Outputs tabs now edit `state.config` in place: tables with add/remove rows, selects limited to the configured apps/activities/zones, checkbox lists for startup and autostart, and lazy creation of the `[theme]` table.
+- Apps edit id, name, comma-separated argv, window class, and activities; removing an app also drops its placement, startup, and autostart references.
+- Outputs get a role select (`main`/`side`/`portrait`/`custom`) plus a custom-role field and primary toggle; connectors stay read-only and come from the saved config and detected displays, never a fixed list.
+- Theme gains a wallpaper directory input, a multi-select built from configured and detected connectors, rotation intent, and the same-image/fullscreen/idle flags.
+- Save and Apply now surface PUT validation errors and apply-run failures in the Apply tab and status bar; API errors carry their payload, and Apply still PUTs the config before POSTing `/api/apply`.
+- Replaced the JSON widget/theme editors with the structured forms; removed the JSON editor CSS and added form/table field styles. Suite is now 203 tests.
+
 ## 2026-11-15 — Canvas zone editor
 
 - Layout tab now renders one aspect-correct canvas per configured output, using detected width/height when available and 16:9 otherwise; each canvas carries its own accessible label and zones.

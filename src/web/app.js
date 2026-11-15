@@ -24,10 +24,19 @@ const state = {
   drag: null,
   dirty: false,
   busy: false,
+  applyError: "",
 };
 
 const ZONE_MIN = 0.05;
 const ZONE_MAX = 1;
+
+const ROLE_CHOICES = ["main", "side", "portrait", "custom"];
+const STANDARD_ROLES = ROLE_CHOICES.filter((role) => role !== "custom");
+const PLACEMENT_MODES = ["normal", "maximized", "fullscreen"];
+const STARTUP_KEYS = [
+  { key: "always", label: "Always" },
+  { key: "private", label: "Private" },
+];
 
 const elements = {
   tabs: document.getElementById("tabs"),
@@ -139,7 +148,11 @@ async function api(path, options) {
     }
   }
   if (!response.ok) {
-    throw new Error(errorMessage(payload, response.status));
+    const error = new Error(errorMessage(payload, response.status));
+    error.status = response.status;
+    error.payload = payload;
+    error.errors = payload && Array.isArray(payload.errors) ? payload.errors : [];
+    throw error;
   }
   return payload;
 }
@@ -227,7 +240,13 @@ function table(panel, headers, rows) {
   for (const row of rows) {
     const rowElement = make("tr");
     for (const cell of row) {
-      rowElement.append(make("td", "", cell === undefined || cell === null ? "" : cell));
+      const cellElement = make("td");
+      if (cell instanceof Node) {
+        cellElement.append(cell);
+      } else {
+        cellElement.textContent = cell === undefined || cell === null ? "" : String(cell);
+      }
+      rowElement.append(cellElement);
     }
     tbody.append(rowElement);
   }
@@ -236,22 +255,285 @@ function table(panel, headers, rows) {
   panel.append(wrap);
 }
 
+// -- form helpers ---------------------------------------------------------
+
+function commitEdit(needsRender) {
+  markDirty();
+  if (needsRender) render();
+}
+
+function inputValue(value) {
+  return value === undefined || value === null ? "" : String(value);
+}
+
+function splitList(value) {
+  const items = String(value === undefined || value === null ? "" : value).split(",");
+  const cleaned = [];
+  for (const item of items) {
+    const trimmed = item.trim();
+    if (trimmed) cleaned.push(trimmed);
+  }
+  return cleaned;
+}
+
+function textField(value, commit, options) {
+  const settings = options || {};
+  const input = make("input", "input");
+  input.type = "text";
+  input.value = inputValue(value);
+  if (settings.placeholder) input.placeholder = settings.placeholder;
+  if (settings.ariaLabel) input.setAttribute("aria-label", settings.ariaLabel);
+  input.addEventListener("change", function () {
+    commit(input.value, input);
+    commitEdit(settings.rerender === true);
+  });
+  return input;
+}
+
+function numberField(value, commit, options) {
+  const settings = options || {};
+  const input = make("input", "input input-number");
+  input.type = "number";
+  input.step = settings.step || "1";
+  input.value = typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+  if (settings.ariaLabel) input.setAttribute("aria-label", settings.ariaLabel);
+  input.addEventListener("change", function () {
+    const parsed = Number(input.value);
+    commit(Number.isFinite(parsed) ? parsed : 0);
+    commitEdit(settings.rerender === true);
+  });
+  return input;
+}
+
+function optionList(options) {
+  return options.map(function (option) {
+    return typeof option === "string" ? { value: option, label: option } : option;
+  });
+}
+
+function selectField(value, options, commit, ariaLabel) {
+  const select = make("select", "input input-select");
+  const seen = new Set();
+  for (const option of optionList(options)) {
+    const element = make("option", "", option.label);
+    element.value = option.value;
+    seen.add(String(option.value));
+    select.append(element);
+  }
+  const current = inputValue(value);
+  if (current && !seen.has(current)) {
+    const element = make("option", "", current);
+    element.value = current;
+    select.append(element);
+  }
+  select.value = current;
+  if (ariaLabel) select.setAttribute("aria-label", ariaLabel);
+  select.addEventListener("change", function () {
+    commit(select.value);
+    commitEdit(false);
+  });
+  return select;
+}
+
+function multiSelectField(values, options, commit, ariaLabel) {
+  const select = make("select", "input input-select multiselect");
+  select.multiple = true;
+  const entries = optionList(options);
+  select.size = String(Math.min(Math.max(entries.length, 3), 8));
+  const selected = new Set(asArray(values));
+  for (const option of entries) {
+    const element = make("option", "", option.label);
+    element.value = option.value;
+    if (selected.has(option.value)) element.selected = true;
+    select.append(element);
+  }
+  if (ariaLabel) select.setAttribute("aria-label", ariaLabel);
+  select.addEventListener("change", function () {
+    const picked = [];
+    for (const option of select.selectedOptions) picked.push(option.value);
+    commit(picked);
+    commitEdit(false);
+  });
+  return select;
+}
+
+function checkboxField(checked, labelText, commit, ariaLabel) {
+  const label = make("label", "check-item");
+  const input = make("input");
+  input.type = "checkbox";
+  input.checked = checked === true;
+  if (ariaLabel) input.setAttribute("aria-label", ariaLabel);
+  input.addEventListener("change", function () {
+    commit(input.checked);
+    commitEdit(false);
+  });
+  label.append(input, make("span", "", labelText));
+  return label;
+}
+
+function plainCheckbox(checked, commit, ariaLabel) {
+  const input = make("input");
+  input.type = "checkbox";
+  input.checked = checked === true;
+  input.setAttribute("aria-label", ariaLabel);
+  input.addEventListener("change", function () {
+    commit(input.checked);
+    commitEdit(false);
+  });
+  return input;
+}
+
+function actionButton(label, ariaLabel, onClick, className) {
+  const element = make("button", className || "", label);
+  element.type = "button";
+  if (ariaLabel) element.setAttribute("aria-label", ariaLabel);
+  element.addEventListener("click", onClick);
+  return element;
+}
+
+function removeButton(ariaLabel, onClick) {
+  return actionButton("Remove", ariaLabel, onClick, "row-remove");
+}
+
+// -- config readers -------------------------------------------------------
+
+function configObject(key) {
+  const value = state.config ? state.config[key] : null;
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function appIds() {
+  return asArray(state.config && state.config.app)
+    .map((app) => app.id)
+    .filter((id) => typeof id === "string" && id);
+}
+
+function activityRoles() {
+  return Object.keys(configObject("activities"));
+}
+
+function activityOptions() {
+  const activities = configObject("activities");
+  return activityRoles().map(function (role) {
+    const entry = activities[role];
+    const name = entry && typeof entry === "object" ? entry.name : "";
+    return { value: role, label: name ? role + " (" + name + ")" : role };
+  });
+}
+
+function zoneOptions() {
+  return asArray(state.config && state.config.zone).map(function (zone) {
+    return { value: zone.id, label: zone.id + " (" + zone.kind + ")" };
+  });
+}
+
+// -- apps -----------------------------------------------------------------
+
+function newAppId() {
+  const used = new Set(appIds());
+  let index = 1;
+  while (used.has("custom-app-" + index)) index += 1;
+  return "custom-app-" + index;
+}
+
+function addApp() {
+  if (!state.config) return;
+  const apps = asArray(state.config.app);
+  apps.push({
+    id: newAppId(),
+    name: "New app",
+    command: ["true"],
+    wm_class: "",
+    activities: [],
+  });
+  state.config.app = apps;
+  commitEdit(true);
+}
+
+function removeApp(index) {
+  const apps = asArray(state.config.app);
+  const app = apps[index];
+  if (!app) return;
+  const confirmed = window.confirm(
+    "Remove app " + app.id + " and every placement, startup, and autostart reference?",
+  );
+  if (!confirmed) {
+    setStatus("Remove cancelled.", "warn");
+    return;
+  }
+  state.config.app = apps.filter((item, position) => position !== index);
+  state.config.placement = asArray(state.config.placement).filter(
+    (placement) => placement.app !== app.id,
+  );
+  const startup = configObject("startup");
+  for (const entry of STARTUP_KEYS) {
+    if (!Array.isArray(startup[entry.key])) continue;
+    startup[entry.key] = startup[entry.key].filter((id) => id !== app.id);
+  }
+  const autostart = configObject("autostart");
+  for (const role of Object.keys(autostart)) {
+    const section = autostart[role];
+    if (!section || !Array.isArray(section.apps)) continue;
+    section.apps = section.apps.filter((id) => id !== app.id);
+  }
+  commitEdit(true);
+}
+
 function renderApps(panel) {
   heading(
     panel,
     "Apps",
-    "Declared applications. Commands are argv lists and never pass through a shell.",
+    "Declared applications. Commands are argv lists split on commas and never pass through a shell.",
   );
+  const apps = asArray(state.config.app);
+  const rows = apps.map(function (app, index) {
+    const label = app.id || "app " + (index + 1);
+    return [
+      textField(app.id, (value) => { app.id = value.trim(); }, {
+        placeholder: "app-id",
+        ariaLabel: "Id for " + label,
+      }),
+      textField(app.name || "", (value) => { app.name = value; }, {
+        placeholder: "Display name",
+        ariaLabel: "Name for " + label,
+      }),
+      textField(asArray(app.command).join(", "), (value) => {
+        app.command = splitList(value);
+      }, {
+        placeholder: "firefox, --new-window",
+        ariaLabel: "Command argv for " + label,
+      }),
+      textField(app.wm_class || "", (value) => { app.wm_class = value; }, {
+        placeholder: "firefox",
+        ariaLabel: "Window class for " + label,
+      }),
+      textField(asArray(app.activities).join(", "), (value) => {
+        app.activities = splitList(value);
+      }, {
+        placeholder: "work, private",
+        ariaLabel: "Activities for " + label,
+      }),
+      removeButton("Remove app " + label, function () { removeApp(index); }),
+    ];
+  });
   table(
     panel,
-    ["Id", "Name", "Command", "Window class"],
-    asArray(state.config.app).map((app) => [
-      app.id,
-      app.name,
-      asArray(app.command).join(" "),
-      app.wm_class,
-    ]),
+    [
+      "Id",
+      "Name",
+      "Command (argv, comma-separated)",
+      "Window class",
+      "Activities (comma-separated)",
+      "Actions",
+    ],
+    rows,
   );
+  const actions = make("div", "table-actions");
+  actions.append(
+    actionButton("Add app", "Add a custom app", function () { addApp(); }),
+  );
+  panel.append(actions);
+
   const catalog = state.catalog;
   if (catalog && typeof catalog === "object") {
     const slots = Object.keys(catalog);
@@ -261,8 +543,30 @@ function renderApps(panel) {
       );
     }
   }
-  panel.append(
-    make("p", "muted", "Structured app editing arrives in a later task; this view is read-only."),
+}
+
+// -- outputs --------------------------------------------------------------
+
+function isCustomRole(role) {
+  return typeof role !== "string" || role === "" || !STANDARD_ROLES.includes(role);
+}
+
+function outputRoleValue(output) {
+  return isCustomRole(output.role) ? "custom" : output.role;
+}
+
+function chooseOutputRole(output, value) {
+  if (value === "custom") {
+    if (!isCustomRole(output.role)) output.role = "custom";
+  } else {
+    output.role = value;
+  }
+  commitEdit(true);
+}
+
+function detectedFor(connector) {
+  return (
+    asArray(state.outputs).find((item) => item.connector === connector) || null
   );
 }
 
@@ -270,33 +574,47 @@ function renderOutputs(panel) {
   heading(
     panel,
     "Outputs",
-    "Output roles decide which physical display receives which layout.",
+    "Output roles decide which physical display receives which layout. Connectors come from the detected outputs and the saved configuration.",
   );
   const outputs = asArray(state.config.output);
   if (!outputs.length) {
     panel.append(make("p", "muted", "No outputs configured."));
     return;
   }
-  const grid = make("div", "grid");
-  const detected = asArray(state.outputs);
-  for (const output of outputs) {
-    const card = make("div", "card");
-    card.append(make("h3", "", output.id + " / " + (output.role || "no role")));
-    const list = make("dl", "kv");
-    keyValue(list, "Connector", output.connector);
-    keyValue(list, "Primary", output.primary ? "yes" : "no");
-    const match = detected.find((item) => item.connector === output.connector);
-    keyValue(
-      list,
-      "Detected",
-      match ? match.width + "x" + match.height + " at " + match.x + "," + match.y : "not detected",
+  const rows = outputs.map(function (output) {
+    const label = output.id || output.connector || "output";
+    const detected = detectedFor(output.connector);
+    const detectedText = detected
+      ? detected.width + "x" + detected.height + " at " + detected.x + "," + detected.y
+      : "not detected";
+    const customInput = textField(
+      isCustomRole(output.role) ? output.role : "",
+      (value) => { output.role = value.trim(); },
+      { placeholder: "custom role", ariaLabel: "Custom role for " + label },
     );
-    card.append(list);
-    grid.append(card);
-  }
-  panel.append(grid);
-  panel.append(
-    make("p", "muted", "Role mapping is read-only in this shell; full editing arrives later."),
+    customInput.disabled = !isCustomRole(output.role);
+    return [
+      make("span", "mono", output.id),
+      make("span", "mono", output.connector || ""),
+      make("span", "cell-note", detectedText),
+      selectField(
+        outputRoleValue(output),
+        ROLE_CHOICES,
+        (value) => { chooseOutputRole(output, value); },
+        "Role for " + label,
+      ),
+      customInput,
+      plainCheckbox(
+        output.primary === true,
+        (value) => { output.primary = value; },
+        "Primary output " + label,
+      ),
+    ];
+  });
+  table(
+    panel,
+    ["Output", "Connector", "Detected", "Role", "Custom role", "Primary"],
+    rows,
   );
 }
 
@@ -592,125 +910,409 @@ function renderLayout(panel) {
   panel.append(card);
 }
 
+// -- placement ------------------------------------------------------------
+
+function addPlacement() {
+  if (!state.config) return;
+  const placements = asArray(state.config.placement).slice();
+  placements.push({
+    app: appIds()[0] || "",
+    activity: activityRoles()[0] || "",
+    zone: asArray(state.config.zone)[0] ? state.config.zone[0].id : "",
+    mode: "normal",
+    priority: 0,
+  });
+  state.config.placement = placements;
+  commitEdit(true);
+}
+
+function removePlacement(index) {
+  const placements = asArray(state.config.placement);
+  if (!placements[index]) return;
+  state.config.placement = placements.filter((item, position) => position !== index);
+  commitEdit(true);
+}
+
 function renderPlacement(panel) {
   heading(
     panel,
     "Placement",
-    "Each placement pins an app to a zone for one activity.",
+    "Each placement pins an app to a zone for one activity. Choices come from the apps, activities, and zones in this configuration.",
   );
-  table(
-    panel,
-    ["App", "Activity", "Zone", "Mode"],
-    asArray(state.config.placement).map((placement) => [
-      placement.app,
-      placement.activity,
-      placement.zone,
-      placement.mode,
-    ]),
+  const apps = appIds();
+  const activities = activityOptions();
+  const zones = zoneOptions();
+  const rows = asArray(state.config.placement).map(function (placement, index) {
+    const label = "placement " + (index + 1);
+    return [
+      selectField(placement.app, apps, (value) => { placement.app = value; }, "App for " + label),
+      selectField(
+        placement.activity,
+        activities,
+        (value) => { placement.activity = value; },
+        "Activity for " + label,
+      ),
+      selectField(
+        placement.zone,
+        zones,
+        (value) => { placement.zone = value; },
+        "Zone for " + label,
+      ),
+      selectField(
+        placement.mode,
+        PLACEMENT_MODES,
+        (value) => { placement.mode = value; },
+        "Mode for " + label,
+      ),
+      numberField(
+        typeof placement.priority === "number" ? placement.priority : 0,
+        (value) => { placement.priority = value; },
+        { step: "1", ariaLabel: "Priority for " + label },
+      ),
+      removeButton("Remove " + label, function () { removePlacement(index); }),
+    ];
+  });
+  table(panel, ["App", "Activity", "Zone", "Mode", "Priority", "Actions"], rows);
+  const actions = make("div", "table-actions");
+  actions.append(
+    actionButton("Add placement", "Add a placement row", function () { addPlacement(); }),
   );
+  panel.append(actions);
 }
 
-function listCard(panel, title, values) {
-  const card = make("div", "card");
-  card.append(make("h3", "", title));
-  if (!values.length) {
-    card.append(make("p", "muted", "None."));
-  } else {
-    const list = make("ul");
-    for (const value of values) list.append(make("li", "", value));
-    card.append(list);
+// -- startup --------------------------------------------------------------
+
+function startupList(key, create) {
+  const startup = configObject("startup");
+  if (Array.isArray(startup[key])) return startup[key];
+  if (!create) return [];
+  if (!state.config.startup || typeof state.config.startup !== "object") {
+    state.config.startup = {};
   }
-  panel.append(card);
+  state.config.startup[key] = [];
+  return state.config.startup[key];
+}
+
+function toggleStartup(key, appId, enabled) {
+  const current = startupList(key, true);
+  const next = enabled
+    ? current.concat([appId])
+    : current.filter((id) => id !== appId);
+  const unique = Array.from(new Set(next));
+  state.config.startup[key] = unique;
 }
 
 function renderStartup(panel) {
-  heading(panel, "Startup", "Apps started with every session or only with the private activity.");
-  const startup = state.config.startup || {};
+  heading(
+    panel,
+    "Startup",
+    "Apps started with every session or only with the private activity. Checked entries are written to startup.always or startup.private.",
+  );
+  const apps = appIds();
   const grid = make("div", "grid");
   panel.append(grid);
-  listCard(grid, "Always", asArray(startup.always));
-  listCard(grid, "Private", asArray(startup.private));
+  if (!apps.length) {
+    panel.append(make("p", "muted", "Add an app before choosing startup entries."));
+    return;
+  }
+  for (const entry of STARTUP_KEYS) {
+    const card = make("div", "card");
+    const list = startupList(entry.key, false);
+    card.append(make("h3", "", entry.label));
+    const field = make("fieldset", "check-list");
+    field.append(make("legend", "", entry.label + " startup"));
+    for (const appId of apps) {
+      const checked = list.includes(appId);
+      field.append(
+        checkboxField(
+          checked,
+          appId,
+          (value) => { toggleStartup(entry.key, appId, value); },
+          "Start " + appId + " with " + entry.label.toLowerCase(),
+        ),
+      );
+    }
+    card.append(field);
+    grid.append(card);
+  }
+}
+
+// -- autostart ------------------------------------------------------------
+
+function autostartRoles() {
+  const roles = activityRoles();
+  for (const role of Object.keys(configObject("autostart"))) {
+    if (!roles.includes(role)) roles.push(role);
+  }
+  return roles;
+}
+
+function autostartApps(role) {
+  const section = configObject("autostart")[role];
+  return section && Array.isArray(section.apps) ? section.apps : [];
+}
+
+function toggleAutostart(role, appId, enabled) {
+  if (!state.config.autostart || typeof state.config.autostart !== "object") {
+    state.config.autostart = {};
+  }
+  const section = state.config.autostart[role];
+  const current = section && Array.isArray(section.apps) ? section.apps : [];
+  const next = enabled ? current.concat([appId]) : current.filter((id) => id !== appId);
+  const base = section && typeof section === "object" ? section : {};
+  state.config.autostart[role] = Object.assign({}, base, {
+    apps: Array.from(new Set(next)),
+  });
 }
 
 function renderAutostart(panel) {
-  heading(panel, "Autostart", "First-entry app sets per activity role.");
-  const autostart = state.config.autostart || {};
-  const roles = Object.keys(autostart);
+  heading(
+    panel,
+    "Autostart",
+    "First-entry app sets per activity role. Checked apps are written to autostart.<role>.apps.",
+  );
+  const apps = appIds();
+  const roles = autostartRoles();
   if (!roles.length) {
-    panel.append(make("p", "muted", "No autostart sections configured."));
+    panel.append(make("p", "muted", "No activity roles configured."));
     return;
+  }
+  if (!apps.length) {
+    panel.append(make("p", "muted", "Add an app before choosing autostart entries."));
   }
   const grid = make("div", "grid");
   panel.append(grid);
   for (const role of roles) {
-    listCard(grid, role, asArray((autostart[role] || {}).apps));
+    const card = make("div", "card");
+    const activities = configObject("activities");
+    const name = activities[role] && activities[role].name;
+    card.append(make("h3", "", name ? name + " (" + role + ")" : role));
+    const current = autostartApps(role);
+    const field = make("fieldset", "check-list");
+    field.append(make("legend", "", role + " autostart"));
+    if (!apps.length) {
+      field.append(make("p", "muted", "No apps declared."));
+    }
+    for (const appId of apps) {
+      field.append(
+        checkboxField(
+          current.includes(appId),
+          appId,
+          (value) => { toggleAutostart(role, appId, value); },
+          "Autostart " + appId + " on " + role,
+        ),
+      );
+    }
+    card.append(field);
+    grid.append(card);
   }
 }
 
-function jsonEditor(panel, title, initial, commit) {
-  const label = make("label", "editor");
-  label.append(make("span", "editor-label", title + " (JSON)"));
-  const area = make("textarea", "json-editor");
-  area.spellcheck = false;
-  area.value = JSON.stringify(initial === undefined ? null : initial, null, 2);
-  area.addEventListener("change", function () {
-    try {
-      const parsed = JSON.parse(area.value);
-      commit(parsed);
-      markDirty();
-      render();
-    } catch (error) {
-      setStatus("Invalid JSON: " + (error && error.message ? error.message : error), "error");
-    }
+// -- widgets --------------------------------------------------------------
+
+function shellZoneOptions() {
+  const zones = asArray(state.config && state.config.zone);
+  const shell = zones.filter((zone) => zone.kind === "shell");
+  const ordered = shell.concat(zones.filter((zone) => zone.kind !== "shell"));
+  return ordered.map(function (zone) {
+    return { value: zone.id, label: zone.id + " (" + zone.kind + ")" };
   });
-  label.append(area);
-  panel.append(label);
+}
+
+function addWidget() {
+  if (!state.config) return;
+  const zones = shellZoneOptions();
+  const widgets = asArray(state.config.desktop_widget).slice();
+  widgets.push({
+    plugin: "clock",
+    zone: zones.length ? zones[0].value : "",
+    scale: 1.0,
+  });
+  state.config.desktop_widget = widgets;
+  commitEdit(true);
+}
+
+function removeWidget(index) {
+  const widgets = asArray(state.config.desktop_widget);
+  if (!widgets[index]) return;
+  state.config.desktop_widget = widgets.filter((item, position) => position !== index);
+  commitEdit(true);
 }
 
 function renderWidgets(panel) {
-  heading(panel, "Widgets", "Desktop widgets anchored to shell zones.");
-  table(
+  heading(
     panel,
-    ["Plugin", "Zone", "Scale"],
-    asArray(state.config.desktop_widget).map((widget) => [
-      widget.plugin,
-      widget.zone,
-      widget.scale,
-    ]),
+    "Widgets",
+    "Desktop widgets anchored to shell zones. The generated key is derived from the widget order in rice.toml.",
   );
-  jsonEditor(panel, "desktop_widget", asArray(state.config.desktop_widget), function (value) {
-    if (!Array.isArray(value)) {
-      throw new Error("desktop_widget must be a JSON list.");
-    }
-    state.config.desktop_widget = value;
+  const zones = shellZoneOptions();
+  const rows = asArray(state.config.desktop_widget).map(function (widget, index) {
+    const label = "widget rice_" + index;
+    return [
+      make("span", "mono", "rice_" + index),
+      textField(widget.plugin || "", (value) => { widget.plugin = value.trim(); }, {
+        placeholder: "clock",
+        ariaLabel: "Plugin for " + label,
+      }),
+      selectField(widget.zone, zones, (value) => { widget.zone = value; }, "Zone for " + label),
+      numberField(
+        typeof widget.scale === "number" ? widget.scale : 1.0,
+        (value) => { widget.scale = value; },
+        { step: "0.05", ariaLabel: "Scale for " + label },
+      ),
+      removeButton("Remove " + label, function () { removeWidget(index); }),
+    ];
   });
+  table(panel, ["Key", "Plugin", "Zone", "Scale", "Actions"], rows);
+  if (!zones.length) {
+    panel.append(make("p", "muted", "Add a zone before adding a widget."));
+  }
+  const actions = make("div", "table-actions");
+  const addButton = actionButton(
+    "Add widget",
+    "Add a desktop widget",
+    function () { addWidget(); },
+  );
+  addButton.disabled = !zones.length;
+  actions.append(addButton);
+  panel.append(actions);
+}
+
+// -- theme ----------------------------------------------------------------
+
+function themeObject() {
+  const theme = state.config ? state.config.theme : null;
+  return theme && typeof theme === "object" && !Array.isArray(theme) ? theme : null;
+}
+
+function updateTheme(key, value) {
+  if (!state.config) return;
+  if (!state.config.theme || typeof state.config.theme !== "object" || Array.isArray(state.config.theme)) {
+    state.config.theme = {};
+  }
+  state.config.theme[key] = value;
+}
+
+function themeValue(key, fallback) {
+  const theme = themeObject();
+  if (!theme || theme[key] === undefined || theme[key] === null) return fallback;
+  return theme[key];
+}
+
+function themeOutputOptions() {
+  const options = [];
+  const seen = new Set();
+  const add = function (value, label) {
+    if (typeof value !== "string" || !value || seen.has(value)) return;
+    seen.add(value);
+    options.push({ value: value, label: label });
+  };
+  for (const output of asArray(state.config.output)) {
+    add(output.connector, output.id + " (" + output.connector + ")");
+  }
+  for (const detected of asArray(state.outputs)) {
+    add(detected.connector, detected.connector + " (detected)");
+  }
+  const theme = themeObject();
+  for (const value of asArray(theme && theme.outputs)) {
+    add(value, value + " (configured)");
+  }
+  return options;
 }
 
 function renderTheme(panel) {
-  heading(panel, "Theme", "Wallpaper and rotation settings from the optional theme table.");
-  const theme = state.config.theme;
-  if (!theme) {
+  heading(
+    panel,
+    "Theme",
+    "Wallpaper directory, target connectors, and rotation intent from the optional theme table.",
+  );
+  if (!themeObject()) {
     panel.append(
       make(
         "p",
         "muted",
-        "rice.toml has no theme table yet. Enter one as JSON to add it, or leave it empty.",
+        "rice.toml has no [theme] table yet. Editing any field adds it on the next Save or Apply.",
       ),
     );
   }
-  jsonEditor(panel, "theme", theme || {}, function (value) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new Error("theme must be a JSON object.");
-    }
-    state.config.theme = value;
-  });
+  const form = make("div", "form-grid");
+
+  const directory = make("label", "field wide");
+  directory.append(make("span", "field-label", "Wallpaper directory"));
+  directory.append(
+    textField(
+      themeValue("wallpaper_dir", ""),
+      (value) => { updateTheme("wallpaper_dir", value.trim()); },
+      { placeholder: "~/Pictures/rice-wallpapers", ariaLabel: "Wallpaper directory" },
+    ),
+  );
+  form.append(directory);
+
+  const outputs = make("label", "field");
+  outputs.append(make("span", "field-label", "Outputs (connector names)"));
+  outputs.append(
+    multiSelectField(
+      themeValue("outputs", []),
+      themeOutputOptions(),
+      (values) => { updateTheme("outputs", values); },
+      "Theme outputs",
+    ),
+  );
+  form.append(outputs);
+
+  const rotation = make("label", "field");
+  rotation.append(make("span", "field-label", "Rotation intent"));
+  rotation.append(
+    textField(
+      themeValue("rotation", ""),
+      (value) => { updateTheme("rotation", value.trim()); },
+      { placeholder: "hourly", ariaLabel: "Rotation intent" },
+    ),
+  );
+  form.append(rotation);
+
+  const toggles = make("fieldset", "field check-list");
+  toggles.append(make("legend", "field-label", "Flags"));
+  toggles.append(
+    checkboxField(
+      themeValue("same_image_all_outputs", true) === true,
+      "Same image on all outputs",
+      (value) => { updateTheme("same_image_all_outputs", value); },
+      "Same image on all outputs",
+    ),
+  );
+  toggles.append(
+    checkboxField(
+      themeValue("pause_on_fullscreen", true) === true,
+      "Pause rotation on fullscreen",
+      (value) => { updateTheme("pause_on_fullscreen", value); },
+      "Pause rotation on fullscreen",
+    ),
+  );
+  toggles.append(
+    checkboxField(
+      themeValue("pause_on_idle", true) === true,
+      "Pause rotation when idle",
+      (value) => { updateTheme("pause_on_idle", value); },
+      "Pause rotation when idle",
+    ),
+  );
+  form.append(toggles);
+  panel.append(form);
+  panel.append(
+    make(
+      "p",
+      "muted",
+      "Theme outputs are connector names. Pick them from the outputs above or the detected displays.",
+    ),
+  );
 }
 
 function renderApply(panel) {
   heading(
     panel,
     "Apply",
-    "Apply saves the in-memory document, validates it, and runs the same pipeline as rice apply.",
+    "Apply saves the in-memory document, validates it, and runs the same pipeline as rice apply. Errors from validation and from the apply run appear here.",
   );
   const card = make("div", "card");
   const list = make("dl", "kv");
@@ -721,6 +1323,14 @@ function renderApply(panel) {
   keyValue(list, "Apps", String(asArray(state.config.app).length));
   card.append(list);
   panel.append(card);
+
+  if (state.applyError) {
+    const errorPanel = make("div", "card apply-error");
+    errorPanel.setAttribute("role", "alert");
+    errorPanel.append(make("h3", "", "Apply did not complete"));
+    errorPanel.append(make("p", "apply-error-text", state.applyError));
+    panel.append(errorPanel);
+  }
 
   const errors = asArray(state.validation);
   if (errors.length) {
@@ -756,6 +1366,7 @@ async function loadState() {
     state.outputs = asArray(payload && payload.outputs);
     state.catalog = payload ? payload.catalog : null;
     state.dirty = false;
+    state.applyError = "";
     render();
     if (!state.config) {
       setStatus("No rice.toml could be loaded from the configured path.", "warn");
@@ -782,11 +1393,20 @@ async function loadState() {
   });
 }
 
+function recordFailure(error) {
+  state.applyError = error && error.message ? error.message : String(error);
+  const errors = asArray(error && error.errors);
+  if (errors.length) state.validation = errors;
+  render();
+  setStatus(state.applyError, "error");
+}
+
 async function validateDocument() {
   await run(async function () {
     setStatus("Validating the saved configuration...");
     const payload = await api("/api/validate", { method: "POST", body: {} });
     state.validation = asArray(payload && payload.errors);
+    state.applyError = "";
     if (state.validation.length) {
       setStatus(
         state.validation.length + " validation error(s): " + state.validation.join("; "),
@@ -806,11 +1426,32 @@ async function saveDocument() {
   await run(async function () {
     if (!state.config) throw new Error("There is no configuration to save.");
     setStatus("Saving...");
-    await api("/api/config", { method: "PUT", body: { config: state.config } });
-    const payload = await api("/api/validate", { method: "POST", body: {} });
-    state.validation = asArray(payload && payload.errors);
+    try {
+      await api("/api/config", { method: "PUT", body: { config: state.config } });
+    } catch (error) {
+      recordFailure(error);
+      return;
+    }
     state.dirty = false;
+    state.applyError = "";
+    try {
+      const payload = await api("/api/validate", { method: "POST", body: {} });
+      state.validation = asArray(payload && payload.errors);
+    } catch (error) {
+      recordFailure(error);
+      return;
+    }
     render();
+    if (state.validation.length) {
+      setStatus(
+        "Saved, but the validation endpoint reports " +
+          state.validation.length +
+          " error(s): " +
+          state.validation.join("; "),
+        "error",
+      );
+      return;
+    }
     setStatus("Configuration saved.", "ok");
   });
 }
@@ -830,13 +1471,25 @@ async function applyDocument() {
     return;
   }
   await run(async function () {
-    setStatus("Saving...");
-    await api("/api/config", { method: "PUT", body: { config: state.config } });
+    state.applyError = "";
+    setStatus("Saving configuration...");
+    try {
+      await api("/api/config", { method: "PUT", body: { config: state.config } });
+    } catch (error) {
+      recordFailure(error);
+      return;
+    }
     state.dirty = false;
+    state.validation = [];
     setStatus("Applying...");
-    await api("/api/apply", { method: "POST", body: {} });
+    try {
+      await api("/api/apply", { method: "POST", body: {} });
+    } catch (error) {
+      recordFailure(error);
+      return;
+    }
     render();
-    setStatus("Configuration applied.", "ok");
+    setStatus("Configuration applied. The desktop now uses this configuration.", "ok");
   });
 }
 

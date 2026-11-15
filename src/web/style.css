@@ -293,34 +293,125 @@ code,
   font-size: 0.85rem;
 }
 
-.editor {
-  display: block;
+.input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
 }
 
-.editor-label {
+.input:focus {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.input:disabled {
+  opacity: 0.5;
+}
+
+.input-select {
+  min-width: 130px;
+}
+
+.input-number {
+  max-width: 100px;
+}
+
+.multiselect {
+  min-width: 200px;
+  min-height: 120px;
+}
+
+.cell-note {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.row-remove {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--gap);
+  align-items: start;
+}
+
+.form-grid .wide {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: 0.85rem;
+}
+
+.field-label {
   display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.check-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.check-list legend {
+  padding: 0;
   margin-bottom: 6px;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
 
-.json-editor {
-  width: 100%;
-  min-height: 320px;
-  padding: 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--bg-input);
-  color: var(--text);
-  font-family: var(--mono);
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.85rem;
-  line-height: 1.45;
-  resize: vertical;
 }
 
-.json-editor:focus {
-  outline: 1px solid var(--accent);
-  outline-offset: 1px;
+.check-item input {
+  accent-color: var(--accent);
+}
+
+.apply-error {
+  margin-top: var(--gap);
+  border-color: var(--error);
+}
+
+.apply-error-text {
+  margin: 0;
+  color: var(--error);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 .split {
