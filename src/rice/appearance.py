@@ -36,7 +36,6 @@ RULE_APPS = (
     ("thunderbird", "Thunderbird", "thunderbird", 94, 88),
     ("youtube-music", "YouTube Music", "com.github.th-ch.youtube-music", 94, 88),
 )
-EXCEPTION_FULLSCREEN = "fullscreen"
 EXCEPTION_GAMES = "games"
 
 
@@ -86,14 +85,6 @@ def _base_values(description: str, active: int, inactive: int) -> dict:
 
 def _rule_groups() -> list[tuple[str, dict]]:
     groups: list[tuple[str, dict]] = [
-        (
-            RULE_PREFIX + EXCEPTION_FULLSCREEN,
-            {
-                **_base_values("Rice appearance: fullscreen exception", 100, 100),
-                "fullscreen": "true",
-                "fullscreenrule": 2,
-            },
-        ),
         (
             RULE_PREFIX + EXCEPTION_GAMES,
             {

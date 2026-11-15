@@ -4,7 +4,7 @@
 KWin cannot detect which parts of an application are empty: an app must draw a
 transparent background itself for the wallpaper to show through only in empty
 areas. The generated rules therefore make the whole window translucent, while
-fullscreen windows and games stay fully opaque.
+games stay fully opaque; fullscreen windows are never forced by rice.
 
 ## Apply
 
@@ -29,8 +29,10 @@ and reloads KWin. `remove` removes only groups prefixed with
 | Dolphin | 96% | 92% |
 | Obsidian, Thunderbird, YouTube Music | 94% | 88% |
 
-Fullscreen windows and `steam`, `steam_app_*`, and `gamescope` are forced to
-100%. Windows that are not listed keep the user's current KWin appearance.
+`steam`, `steam_app_*`, and `gamescope` are forced to 100%. The profile never
+forces fullscreen; windows that are not listed keep the user's current KWin
+appearance. Fullscreen apps still use the normal opacity rules, so a fullscreen
+video may remain slightly translucent.
 
 Terminal transparency is better handled natively by Alacritty, Kitty, or
 Konsole. Combining native terminal opacity with these KWin rules would stack
@@ -44,6 +46,6 @@ the two effects.
   background alpha; the KWin rule is the practical option.
 - Transparent windows look best with a working KWin blur effect. Without blur,
   busy wallpapers can reduce readability.
-- Games and fullscreen video are deliberately excluded.
+- Games are deliberately excluded. Fullscreen video can inherit the normal opacity rule.
 - Editing the rules through System Settings may replace the generated groups;
   rerun `rice appearance apply` to restore the rice profile.
