@@ -54,7 +54,7 @@ function refresh()
   end
   busy = true
   loadRoles()
-  noctalia.runAsync({ "qdbus6", "org.kde.ActivityManager", "/ActivityManager/Activities", "CurrentActivity" }, function(result)
+  noctalia.runAsync({ "qdbus6", "org.kde.ActivityManager", "/ActivityManager/Activities", "org.kde.ActivityManager.Activities.CurrentActivity" }, function(result)
     busy = false
     if result ~= nil and result.exitCode == 0 then
       local value = noctalia.string.trim(result.stdout)

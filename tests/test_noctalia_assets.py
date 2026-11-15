@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import tomllib
@@ -100,6 +101,40 @@ def test_profile_plugin_has_no_hardcoded_activity_uuid():
     text = (ROOT / "plugins/profile/widget.luau").read_text(encoding="utf-8")
     assert "012e885b" not in text
     assert "db345c88" not in text
+
+
+def test_cheatsheet_panel_lists_generated_shortcuts_only():
+    panel = (CHEATSHEET_PLUGIN / "panel.luau").read_text(encoding="utf-8")
+    for key in (
+        "Meta+M",
+        "Meta+N",
+        "Meta+Q",
+        "Meta+H",
+        "Meta+J",
+        "Meta+1",
+        "Meta+2",
+        "Meta+3",
+        "Meta+Left",
+        "Meta+Right",
+        "Meta+Return",
+        "Meta+Shift+Return",
+        "Ctrl+Alt+Shift+Left",
+        "Ctrl+Alt+Shift+Right",
+        "Ctrl+Alt+R",
+        "Ctrl+Alt+H",
+    ):
+        assert key in panel, f"missing generated shortcut {key!r} in panel.luau"
+    for stale in ("Acer", "Ctrl+Alt+7", "Ctrl+Alt+Shift+T", "Alacritty", "Kitty"):
+        assert stale not in panel, f"stale label {stale!r} in panel.luau"
+
+
+def test_cheatsheet_panel_width_matches_manifest():
+    panel = (CHEATSHEET_PLUGIN / "panel.luau").read_text(encoding="utf-8")
+    match = re.search(r"local WIDTH = (\d+)", panel)
+    assert match, "WIDTH constant missing from panel.luau"
+    with (CHEATSHEET_PLUGIN / "plugin.toml").open("rb") as handle:
+        manifest = tomllib.load(handle)
+    assert int(match.group(1)) == manifest["panel"][0]["width"]
 
 
 def test_media_plugin_files_exist_and_manifest_is_valid_toml():

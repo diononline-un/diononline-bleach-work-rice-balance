@@ -11,7 +11,7 @@ icon = "keyboard"
 [[panel]]
 id = "panel"
 entry = "panel.luau"
-width = 900
+width = 830
 height = 650
 placement = "attached"
 position = "auto"

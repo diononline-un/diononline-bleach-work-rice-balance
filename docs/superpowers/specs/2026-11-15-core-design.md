@@ -76,6 +76,9 @@ application and the installer confirms the AUR helper is available.
 ├── defaults/
 │   ├── rice.toml
 │   ├── apps.toml
+│   ├── noctalia/
+│   │   ├── config.toml
+│   │   └── media.json
 │   └── layouts/
 │       ├── triple.toml
 │       ├── single-split.toml
@@ -113,9 +116,8 @@ application and the installer confirms the AUR helper is available.
 │   └── style.css
 ├── templates/
 │   ├── kwin/main.js.in
-│   ├── noctalia/rice.toml.in
-│   ├── systemd/*.service.in
-│   └── desktop/*.desktop.in
+│   ├── kwin/arrange.js.in
+│   └── systemd/*.service.in
 ├── assets/
 │   └── wallpapers/
 │       └── manifest.toml
@@ -332,7 +334,7 @@ scale = 1.0
 ```
 
 The generator converts zones into Noctalia desktop-widget coordinates (`cx`,
-`cy`) and writes them into the generated Noctalia include. The top bar remains
+`cy`) and writes them into the merged Noctalia config. The top bar remains
 a top, full-width element. Shell widget zones are excluded from app placement.
 
 ### 6.9 Theme and Wallpapers
@@ -456,7 +458,7 @@ The daemon reads the generated runtime configuration and writes logs to
 
 - `$XDG_DATA_HOME/kwin/scripts/rice-placement/contents/code/main.js`
 - `$XDG_DATA_HOME/kwin/scripts/rice-placement/metadata.json`
-- `$XDG_CONFIG_HOME/noctalia/rice.toml`
+- `$XDG_CONFIG_HOME/noctalia/config.toml`
 - `$XDG_CONFIG_HOME/systemd/user/rice-*.service`
 - `$XDG_STATE_HOME/rice/runtime.json`
 - launcher and startup entries in the configured application menu
@@ -469,10 +471,11 @@ The daemon reads the generated runtime configuration and writes logs to
 4. restarts `rice-daemon`
 5. prints a summary and any skipped rules
 
-The generated Noctalia file uses only `rice_*` identifiers so it does not
-overwrite a user's unrelated Noctalia widgets. The installer adds it as a
-normal Noctalia config file; Noctalia reads all `*.toml` files in its config
-directory.
+The generated Noctalia config uses only `rice_*` identifiers so it does not
+overwrite a user's unrelated Noctalia widgets. `rice apply` merges those
+widgets into the Noctalia base config and writes the result to
+`$XDG_CONFIG_HOME/noctalia/config.toml`, which Noctalia loads as its main
+configuration.
 
 ## 9. Installer Flow
 

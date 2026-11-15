@@ -67,11 +67,36 @@ local groups = {
   {
     title = "Windows",
     rows = {
-      { "Ctrl+Alt+7", "Main fullscreen" },
-      { "Ctrl+Alt+8", "Side right" },
-      { "Ctrl+Alt+9", "Portrait fullscreen" },
-      { "Ctrl+Alt+F", "Fullscreen" },
-      { "Ctrl+Alt+R", "Apply layout" },
+      { "Meta+M", "Maximize" },
+      { "Meta+N", "Minimize" },
+      { "Meta+Q", "Close" },
+      { "Meta+H", "Left half" },
+      { "Meta+J", "Right half" },
+      { "Ctrl+Alt+R", "Reapply layout" },
+    },
+  },
+  {
+    title = "Displays",
+    rows = {
+      { "Meta+1", "Window to main" },
+      { "Meta+2", "Window to side" },
+      { "Meta+3", "Window to portrait" },
+      { "Meta+Left", "Previous window" },
+      { "Meta+Right", "Next window" },
+    },
+  },
+  {
+    title = "Terminal",
+    rows = {
+      { "Meta+Return", "Terminal" },
+      { "Meta+Shift+Return", "Animated terminal" },
+    },
+  },
+  {
+    title = "Themes",
+    rows = {
+      { "Ctrl+Alt+Shift+Left", "Previous theme" },
+      { "Ctrl+Alt+Shift+Right", "Next theme" },
     },
   },
   {
@@ -86,40 +111,9 @@ local groups = {
     },
   },
   {
-    title = "Themes",
-    rows = {
-      { "Ctrl+Alt+Shift+T", "Theme panel" },
-      { "Ctrl+Alt+Shift+←", "Previous theme" },
-      { "Ctrl+Alt+Shift+→", "Next theme" },
-    },
-  },
-  {
-    title = "Media",
-    rows = {
-      { "Ctrl+Alt+O", "Acer Player" },
-      { "Ctrl+Alt+Down", "Play / Pause" },
-      { "Ctrl+Alt+Left", "Previous Track" },
-      { "Ctrl+Alt+Right", "Next Track" },
-    },
-  },
-  {
     title = "Recording",
     rows = {
       { "F8 / F9", "GPU Recorder (gsr-ui)" },
-    },
-  },
-  {
-    title = "Active window",
-    rows = {
-      { "Super+M", "Maximize" },
-      { "Super+N", "Minimize" },
-      { "Super+Q", "Close" },
-      { "Super+H", "Left half" },
-      { "Super+J", "Right half" },
-      { "Super+Enter", "Alacritty" },
-      { "Super+Shift+Enter", "Kitty with cursor trail" },
-      { "Super+1/2/3", "Window to screen 1/2/3" },
-      { "Super+←/→", "Switch display" },
     },
   },
 }
@@ -193,9 +187,9 @@ local function render()
   local middle = ui.column({ gap = 18, width = COLUMN_WIDTH, align = "stretch" }, {
     groupColumn(groups[4]),
     groupColumn(groups[5]),
+    groupColumn(groups[6]),
   })
   local right = ui.column({ gap = 18, width = COLUMN_WIDTH, align = "stretch" }, {
-    groupColumn(groups[6]),
     groupColumn(groups[7]),
     groupColumn(groups[8]),
   })

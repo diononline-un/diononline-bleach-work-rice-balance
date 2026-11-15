@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Shortcut cleanup and cheatsheet sync
+
+- Switched `rice shortcuts disable-conflicts` to the Plasma 6 `setForeignShortcutKeys` call (2-element action id plus an empty `a(ai)` key list), keeping a `setForeignShortcut` fallback for older Plasma and a concise stderr warning when retries fail.
+- Rewrote the cheatsheet panel to list only the generated bindings with neutral labels; removed stale keys, the personal terminal names, and the media rows.
+- Aligned the cheatsheet panel width with its manifest and the profile widget with the qualified `org.kde.ActivityManager.Activities.CurrentActivity` call.
+- Annotated the core-design spec where it still described the old `noctalia/rice.toml` include; the branch now merges `$XDG_CONFIG_HOME/noctalia/config.toml`.
+- Suite is now 167 tests.
+
 ## 2026-11-15 — Installer roles, Noctalia docs, and privacy coverage
 
 - Fixed installer output roles: the primary display is `main`, the first non-primary is `side`, and the second is `portrait`, independent of KScreen order; ids and geometry stay unchanged.

@@ -262,26 +262,22 @@ def test_disable_conflicts_clears_only_known_actions():
             }
             return actions[component]
 
-        def setForeignShortcut(self, ids, empty):
+        def setForeignShortcutKeys(self, ids, empty):
             calls.append((ids, empty))
 
     cleared = shortcuts.disable_conflicts(
-        iface=FakeIface(), empty=[], attempts=1, sleep=lambda seconds: None
+        iface=FakeIface(), empty_keys=[], empty_shortcut=[], attempts=1, sleep=lambda seconds: None
     )
 
     assert cleared == [
         "kwin:Window Quick Tile Left",
         "plasmashell:manage activities",
     ]
+    # Plasma 6 setForeignShortcutKeys takes the 2-element action id and an
+    # empty a(ai) key list, not the full 4-element row.
     assert calls == [
-        (
-            ["kwin", "Window Quick Tile Left", "KWin", "Window Quick Tile Left"],
-            [],
-        ),
-        (
-            ["plasmashell", "manage activities", "Plasma", "Manage Activities"],
-            [],
-        ),
+        (["kwin", "Window Quick Tile Left"], []),
+        (["plasmashell", "manage activities"], []),
     ]
 
 
@@ -313,11 +309,11 @@ def test_disable_conflicts_retries_until_every_component_registers():
                 return []
             return plasmashell_actions
 
-        def setForeignShortcut(self, ids, empty):
+        def setForeignShortcutKeys(self, ids, empty):
             calls.append(ids[1])
 
     cleared = shortcuts.disable_conflicts(
-        iface=FakeIface(), empty=[], attempts=10, sleep=lambda seconds: None
+        iface=FakeIface(), empty_keys=[], empty_shortcut=[], attempts=10, sleep=lambda seconds: None
     )
 
     # The first pass cleared only kwin; the loop must continue, not stop, so the
@@ -341,6 +337,41 @@ def test_disable_conflicts_retries_until_every_component_registers():
     # Exactly two full passes: the second one observes every wanted action and
     # breaks without re-clearing the kwin actions.
     assert plasmashell_passes["count"] == 2
+
+
+def test_disable_conflicts_falls_back_to_legacy_set_foreign_shortcut():
+    from rice import shortcuts
+
+    calls = []
+
+    class UnknownMethod(Exception):
+        def get_dbus_name(self):
+            return "org.freedesktop.DBus.Error.UnknownMethod"
+
+    class FakeIface:
+        def allActionsForComponent(self, components):
+            return [
+                ["kwin", "Window Quick Tile Left", "KWin", "Window Quick Tile Left"],
+            ]
+
+        def setForeignShortcutKeys(self, ids, empty):
+            raise UnknownMethod("no such method")
+
+        def setForeignShortcut(self, ids, empty):
+            calls.append((ids, list(empty)))
+
+    cleared = shortcuts.disable_conflicts(
+        iface=FakeIface(), empty_keys=[], empty_shortcut=[], attempts=1, sleep=lambda seconds: None
+    )
+
+    assert cleared == ["kwin:Window Quick Tile Left"]
+    # The legacy call keeps the full 4-element row and clears with an empty ai.
+    assert calls == [
+        (
+            ["kwin", "Window Quick Tile Left", "KWin", "Window Quick Tile Left"],
+            [],
+        ),
+    ]
 
 
 def test_doctor_reports_problems(monkeypatch, capsys):
