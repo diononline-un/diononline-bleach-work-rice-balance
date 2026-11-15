@@ -236,7 +236,7 @@ def test_validate_accepts_valid_config():
 @pytest.mark.parametrize("field", ["left", "right"])
 def test_validate_rejects_zone_outside_bounds(field):
     config = deepcopy(VALID)
-    config["zone"][0 if field == "left" else 1]["w"] = 0.8
+    config["zone"][0 if field == "left" else 1]["w"] = 1.2
     errors = validate_config(config)
     assert any("outside" in error for error in errors)
 
