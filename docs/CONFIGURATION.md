@@ -224,14 +224,18 @@ scale = 1.0
 
 | Key | Meaning |
 | --- | --- |
-| `plugin` | Noctalia widget type written as the generated `type`. |
-| `zone` | Shell zone whose center becomes the widget anchor. |
+| `plugin` | Noctalia widget type written as the generated `type`. Must be non-empty. |
+| `zone` | Shell zone whose center becomes the widget anchor. Must reference an existing zone id. |
 | `scale` | Scale factor passed to Noctalia. |
 
 The anchor is computed in absolute output coordinates from the zone center. The
 output is derived from the zone; a separate `output` key is not read by the
 current generator. Generated widget keys use the `rice_` prefix so unrelated
 Noctalia widgets are not overwritten.
+
+Validation rejects a widget whose `plugin` is empty or whose `zone` does not
+name an existing zone, so an invalid document cannot be saved. Removing a zone
+in the configurator also drops every `desktop_widget` entry that references it.
 
 ## [theme]
 
@@ -272,7 +276,9 @@ The validator checks:
 - placement app, zone, activity, and mode references,
 - app commands are non-empty argv arrays,
 - startup and autostart app references,
-- autostart roles have a matching activity.
+- autostart roles have a matching activity,
+- `desktop_widget` is a list whose entries have a non-empty `plugin` and a `zone`
+  that names an existing zone.
 
 A failed validation raises before any file is written or any reload command is
 run.

@@ -18,6 +18,7 @@ def server(tmp_path):
     path = tmp_path / "rice.toml"
     save_config(path, load_config(DEFAULTS))
     httpd = make_server(path, TOKEN, apply_func=lambda *a, **k: None)
+    httpd.backup_root = tmp_path / "web-backups"
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     yield httpd, path
@@ -229,6 +230,74 @@ def test_put_config_rejects_empty_command_from_app_editor(server):
     assert status == 400
     assert "invalid command argv" in body.decode()
     assert load_config(path) == before
+
+
+def test_put_config_backs_up_previous_bytes(server, tmp_path):
+    httpd, path = server
+    before = path.read_bytes()
+    config = load_config(path)
+    config["meta"]["profile_name"] = "edited"
+    status, _ = request(httpd, "PUT", "/api/config", {"config": config})
+    assert status == 200
+    backups = sorted((tmp_path / "web-backups").glob("*/rice.toml"))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == before
+    assert load_config(path)["meta"]["profile_name"] == "edited"
+
+
+def test_put_config_invalid_creates_no_backup(server, tmp_path):
+    httpd, path = server
+    config = load_config(path)
+    config["placement"][0]["zone"] = "missing"
+    status, _ = request(httpd, "PUT", "/api/config", {"config": config})
+    assert status == 400
+    assert list((tmp_path / "web-backups").glob("*/rice.toml")) == []
+
+
+def test_put_config_noop_creates_no_backup(server, tmp_path):
+    httpd, path = server
+    config = load_config(path)
+    status, _ = request(httpd, "PUT", "/api/config", {"config": config})
+    assert status == 200
+    assert list((tmp_path / "web-backups").glob("*/rice.toml")) == []
+
+
+def test_restore_backs_up_previous_config(server, tmp_path):
+    httpd, path = server
+    status, body = request(httpd, "POST", "/api/backup", {})
+    backup_path = json.loads(body)["path"]
+
+    config = load_config(path)
+    config["meta"]["profile_name"] = "changed"
+    save_config(path, config)
+    changed_bytes = path.read_bytes()
+
+    status, _ = request(httpd, "POST", "/api/restore", {"path": backup_path})
+    assert status == 200
+    backups = sorted((tmp_path / "web-backups").glob("*/rice.toml"))
+    assert any(backup.read_bytes() == changed_bytes for backup in backups)
+
+
+def test_put_config_rejects_oversized_body(server, monkeypatch):
+    monkeypatch.setattr("rice.web.MAX_BODY_BYTES", 64)
+    status, body = request(server[0], "PUT", "/api/config", {"config": {"x": "y" * 128}})
+    assert status == 413
+
+
+def test_put_config_save_failure_is_json_500(server, tmp_path, monkeypatch):
+    httpd, path = server
+
+    def fail(config_path, config):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("rice.web.save_config", fail)
+    config = load_config(path)
+    config["meta"]["profile_name"] = "edited"
+    status, body = request(httpd, "PUT", "/api/config", {"config": config})
+    assert status == 500
+    assert "disk full" in body.decode()
+    assert list((tmp_path / "web-backups").glob("*/rice.toml")) == []
+    assert load_config(path)["meta"].get("profile_name") is None
 
 
 def test_apply_failure_is_reported_as_json_error(server):

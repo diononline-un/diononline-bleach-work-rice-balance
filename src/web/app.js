@@ -781,6 +781,11 @@ function removeZone(zoneId) {
   state.config.placement = asArray(state.config.placement).filter(
     (placement) => placement.zone !== zone.id,
   );
+  if (Array.isArray(state.config.desktop_widget)) {
+    state.config.desktop_widget = state.config.desktop_widget.filter(
+      (widget) => widget.zone !== zone.id,
+    );
+  }
   if (state.selected.zone === zone.id) state.selected.zone = null;
   markDirty();
   render();

@@ -66,7 +66,8 @@ The left navigation groups the document by section.
 - **Startup** edits the login startup sets per activity.
 - **Autostart** edits the first-entry app sets per activity.
 - **Widgets** edits the desktop widget anchors that apply renders into the
-  Noctalia config.
+  Noctalia config. Each widget needs a non-empty plugin and a zone that exists,
+  so Save rejects a widget with an empty plugin or a dangling zone reference.
 - **Theme** edits the wallpaper directory, output list, rotation intent, and
   the fullscreen and idle guards.
 - **Apply** shows validation results, run status, and the last error.
@@ -85,7 +86,7 @@ to `0.01`. The editor enforces a `0.05` minimum size and keeps `x + w` and
 `y + h` inside the canvas, which mirrors the geometry rules in
 `rice.config.validate`. Adding a zone creates a unique `custom-<n>` app zone on
 the selected output. Removing one confirms first and drops dependent placement
-rows so the document stays valid.
+rows and desktop widget entries so the document stays valid.
 
 ## Validate, Save, And Apply
 
@@ -102,6 +103,12 @@ reference or a geometry rule, and the UI shows each message in the Apply tab
 and status bar. Apply refuses to run on an invalid document and reports a
 failed run as a single error line.
 
+Before every successful Save, the server copies the previous `rice.toml` into
+the web-backup root, so each edit is recoverable without the manual backup
+button. A no-op Save (the document is unchanged) and an invalid Save write no
+backup. A failed write returns HTTP 500 and rolls back the just-created backup
+instead of dropping the connection.
+
 Apply is the only action with side effects beyond `rice.toml`. It rewrites the
 KWin script, the merged Noctalia config, the user units, and the runtime JSON,
 and then reloads the session. Use Validate first when you are unsure.
@@ -114,8 +121,10 @@ path. Repeated calls in the same second get a numeric suffix.
 
 `POST /api/restore` takes `{"path": "..."}`, loads that file, validates it, and
 writes it over `rice.toml`. The server rejects any path outside the web-backup
-root, so restore cannot read arbitrary files. Apply does not run automatically
-after a restore; review the document, then press Apply or run `rice apply`.
+root, so restore cannot read arbitrary files. Before overwriting, restore backs
+up the current document the same way Save does, so the state being replaced is
+recoverable. Apply does not run automatically after a restore; review the
+document, then press Apply or run `rice apply`.
 
 These backups are separate from the apply backups in
 `$XDG_STATE_HOME/rice/backups`. Uninstall keeps both directories.
@@ -135,6 +144,10 @@ These backups are separate from the apply backups in
 
 Output detection shells out to `kscreen-doctor`. If that probe fails, the
 endpoint returns an empty list instead of an error, so the editor still loads.
+
+JSON request bodies are capped at 2 MiB; a larger body returns HTTP 413. Save
+and restore back up the previous document before writing and return HTTP 500
+with a JSON error when the write fails, instead of dropping the connection.
 
 ## Limitations
 

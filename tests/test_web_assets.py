@@ -80,6 +80,13 @@ def test_layout_editor_supports_drag_resize_add_and_remove():
         assert token in js
 
 
+def test_remove_zone_prunes_placement_and_widgets():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    body = js.split("function removeZone(")[1].split("\nfunction ")[0]
+    assert "placement.zone !== zone.id" in body
+    assert "widget.zone !== zone.id" in body
+
+
 def test_zone_updates_stay_relative():
     js = (WEB / "app.js").read_text(encoding="utf-8")
     assert "Math.min(1" in js

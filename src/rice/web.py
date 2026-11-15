@@ -44,6 +44,13 @@ STATIC_TYPES = {
     ".js": "text/javascript; charset=utf-8",
     ".css": "text/css; charset=utf-8",
 }
+# Largest accepted JSON request body. The configurator only ever sends a single
+# TOML document, so 2 MiB is generous while still bounding a hostile upload.
+MAX_BODY_BYTES = 2 * 1024 * 1024
+
+
+class _PayloadTooLarge(Exception):
+    """Raised by ``_read_json`` when a body exceeds ``MAX_BODY_BYTES``."""
 
 
 class RiceHTTPServer(ThreadingHTTPServer):
@@ -99,6 +106,8 @@ class RiceRequestHandler(BaseHTTPRequestHandler):
 
     def _read_json(self):
         length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_BODY_BYTES:
+            raise _PayloadTooLarge()
         raw = self.rfile.read(length) if length else b""
         if not raw:
             raise ValueError("empty body")
@@ -148,6 +157,9 @@ class RiceRequestHandler(BaseHTTPRequestHandler):
             return
         try:
             body = self._read_json()
+        except _PayloadTooLarge:
+            self._send_error(413, "request body too large")
+            return
         except (ValueError, UnicodeDecodeError):
             self._send_error(400, "invalid JSON body")
             return
@@ -162,7 +174,8 @@ class RiceRequestHandler(BaseHTTPRequestHandler):
         if errors:
             self._send_json(400, {"errors": errors})
             return
-        save_config(self.server.config_path, config)
+        if not self._save_with_backup(config):
+            return
         self._send_json(200, {"status": "ok"})
 
     def do_POST(self):
@@ -220,15 +233,60 @@ class RiceRequestHandler(BaseHTTPRequestHandler):
             return
         self._send_json(200, {"status": "ok"})
 
+    def _next_backup_dir(self) -> Path:
+        """Return a fresh timestamped directory inside the backup root."""
+        root = self.server.backup_root
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        dest_dir = root / stamp
+        suffix = 1
+        while dest_dir.exists():
+            dest_dir = root / f"{stamp}-{suffix}"
+            suffix += 1
+        return dest_dir
+
+    def _backup_current_config(self) -> Path | None:
+        """Copy the current config into the backup root, or return ``None``.
+
+        No backup is written when there is no file to preserve.
+        """
+        source = self.server.config_path
+        if not source.is_file():
+            return None
+        dest_dir = self._next_backup_dir()
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / "rice.toml"
+        shutil.copy2(source, dest)
+        return dest
+
+    def _config_unchanged(self, config: dict) -> bool:
+        """True when the on-disk document already equals ``config``."""
+        try:
+            return load_config(self.server.config_path) == config
+        except (OSError, ValueError):
+            return False
+
+    def _save_with_backup(self, config: dict) -> bool:
+        """Back up the current config, then write ``config`` atomically.
+
+        A no-op write creates no backup. Returns ``False`` after sending an
+        error response, in which case the caller must not send a success
+        response.
+        """
+        if self._config_unchanged(config):
+            return True
+        backup = self._backup_current_config()
+        try:
+            save_config(self.server.config_path, config)
+        except OSError as exc:
+            if backup is not None:
+                shutil.rmtree(backup.parent, ignore_errors=True)
+            self._send_error(500, f"config could not be saved: {exc}")
+            return False
+        return True
+
     def _handle_backup(self):
         try:
-            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            root = self.server.backup_root
-            dest_dir = root / stamp
-            suffix = 1
-            while dest_dir.exists():
-                dest_dir = root / f"{stamp}-{suffix}"
-                suffix += 1
+            dest_dir = self._next_backup_dir()
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest = dest_dir / "rice.toml"
             shutil.copy2(self.server.config_path, dest)
@@ -240,6 +298,9 @@ class RiceRequestHandler(BaseHTTPRequestHandler):
     def _handle_restore(self):
         try:
             body = self._read_json()
+        except _PayloadTooLarge:
+            self._send_error(413, "request body too large")
+            return
         except (ValueError, UnicodeDecodeError):
             self._send_error(400, "invalid JSON body")
             return
@@ -267,7 +328,8 @@ class RiceRequestHandler(BaseHTTPRequestHandler):
         if errors:
             self._send_json(400, {"errors": errors})
             return
-        save_config(self.server.config_path, config)
+        if not self._save_with_backup(config):
+            return
         self._send_json(200, {"status": "ok"})
 
     # -- static ----------------------------------------------------------

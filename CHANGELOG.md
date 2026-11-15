@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Configurator save backups and widget validation
+
+- Save and restore now copy the previous `rice.toml` into `$XDG_STATE_HOME/rice/web-backups/<stamp>` before every successful write, reusing the backup timestamp/collision logic; no-op and invalid writes create no backup, and a failed write rolls the fresh backup back and returns JSON 500 instead of dropping the connection.
+- Removing a zone in `src/web/app.js` now also prunes `desktop_widget` entries that reference it, matching the placement cleanup.
+- `validate_config` rejects a `desktop_widget` that is not a list, has an empty `plugin`, or references an unknown zone, so an invalid document cannot be saved.
+- JSON request bodies are capped at 2 MiB with a 413 response.
+- Docs updated in `docs/CONFIGURATOR.md` and `docs/CONFIGURATION.md`. Suite is now 221 tests.
+
 ## 2026-11-15 — Configurator packaging, docs, and PR
 
 - `install_tree` now copies `src/web` to `$XDG_DATA_HOME/rice/src/web` and writes an installed `rice-config` launcher next to `rice`; both launchers resolve the runtime through `$XDG_DATA_HOME` instead of the checkout path.
