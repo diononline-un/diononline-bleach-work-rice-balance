@@ -54,7 +54,7 @@ height = 1440
 | Key | Meaning |
 | --- | --- |
 | `id` | Stable internal identifier referenced by zones. Must be present and unique. |
-| `role` | Human-readable label such as `main` or `secondary`. The installer writes `main` for the primary output and `secondary` for the rest. The generator does not branch on this field. |
+| `role` | Role label used by the generated shortcut bindings: `main`, `side`, `portrait`, or `extra` for further outputs. The installer writes it by output identity; zones bind to `id`, not to the role. |
 | `connector` | Real KWin output name, for example `DP-1` or `HDMI-A-1`. This is what the generated KWin and Noctalia files use. |
 | `primary` | Whether this is the primary display. Used by the installer to choose the main output. |
 | `x`, `y` | Output origin in the global virtual desktop. Used for desktop-widget anchors. |

@@ -15,9 +15,11 @@ connected and enabled. Each output becomes a record with:
 - `x`, `y`, `width`, and `height` in the global virtual desktop,
 - a `primary` flag.
 
-The installer writes the primary output first with role `main` and every other
-output with role `secondary`. Roles are labels for humans; zones bind to output
-ids, and generated rules bind to connector names.
+The installer writes the primary output as role `main`, the first non-primary
+output as `side`, and the second non-primary output as `portrait`, regardless of
+the order KScreen returns. Further outputs keep the fallback role `extra`.
+Roles drive the move shortcuts; zones bind to output ids, and generated
+placement rules bind to connector names.
 
 If a configured connector is absent at runtime, the KWin script cannot resolve
 the output. It skips the placement for that rule and leaves the application

@@ -63,8 +63,9 @@ argv arrays and never pass through a shell.
 2. Plans packages: the base set plus the packages for the selected variants.
 3. Installs official packages with `pacman` and helper-only packages with the
    AUR helper. Both calls use `--needed --noconfirm`.
-4. Copies the runtime tree to `$XDG_DATA_HOME/rice/` and writes the installed
-   `rice` wrapper to `$HOME/.local/bin/rice`.
+4. Copies the runtime tree to `$XDG_DATA_HOME/rice/`, installs each plugin to
+   `$XDG_DATA_HOME/noctalia-plugins/`, and writes the installed `rice` wrapper
+   to `$HOME/.local/bin/rice`.
 5. Detects outputs with `kscreen-doctor -j`, picks a layout preset, resolves the
    Private and Work activities, and builds a complete configuration.
 6. Writes `$XDG_CONFIG_HOME/rice/rice.toml` atomically.
@@ -77,17 +78,21 @@ Installed runtime paths:
 | --- | --- |
 | `$XDG_DATA_HOME/rice/src/rice` | Python package used by the installed wrapper. |
 | `$XDG_DATA_HOME/rice/templates` | KWin, Noctalia, and systemd templates. |
-| `$XDG_DATA_HOME/rice/defaults` | Canonical config, app catalog, layout presets. |
+| `$XDG_DATA_HOME/rice/defaults` | Canonical config, app catalog, layout presets, and the Noctalia base config. |
 | `$XDG_DATA_HOME/rice/assets` | Wallpaper metadata manifest. |
+| `$XDG_DATA_HOME/noctalia-plugins` | Installed `rice/*` plugins, when the source tree contains `plugins/`. |
 | `$HOME/.local/bin/rice` | Installed CLI wrapper. |
 | `$XDG_CONFIG_HOME/rice/rice.toml` | User configuration. |
+| `$XDG_CONFIG_HOME/noctalia/config.toml` | Generated merged Noctalia configuration. |
 
 If the repository contains a `plugins/` directory, each child directory is
 copied to `$XDG_DATA_HOME/noctalia-plugins/`. The `themes` plugin provides the
 `rice/themes:panel` wallpaper picker opened by `rice theme panel`, the
-`profile` plugin provides the `rice/profile:bar` Work/Private switch, and the
+`profile` plugin provides the `rice/profile:bar` Work/Private switch, the
 `cheatsheet` plugin provides the `rice/cheatsheet:panel` shortcut reference
-opened by `rice cheatsheet`.
+opened by `rice cheatsheet`, and the optional `media` plugin provides the
+`rice/media` transport and queue panels. See [Noctalia](NOCTALIA.md) for the
+plugin model and the media opt-in.
 
 ## Dry Run
 
@@ -108,19 +113,24 @@ inspects it through `ApplyResult.changed`. See
 
 Before replacing a file, apply copies the existing version to
 `$XDG_STATE_HOME/rice/backups/<timestamp>/`. Backups are flat copies named after
-the original file, so a Noctalia include and a generated unit are easy to find.
+the original file, so a Noctalia config and a generated unit are easy to find.
+The generated Noctalia file starts with the line
+`# Noctalia base configuration installed by rice.`; that marker distinguishes a
+rice-owned file from a hand-written one.
 
 To restore a file manually:
 
 ```bash
 ls "$XDG_STATE_HOME/rice/backups"
-cp "$XDG_STATE_HOME/rice/backups/<timestamp>/rice.toml" \
-   "$XDG_CONFIG_HOME/noctalia/rice.toml"
+cp "$XDG_STATE_HOME/rice/backups/<timestamp>/config.toml" \
+   "$XDG_CONFIG_HOME/noctalia/config.toml"
 rice apply
 ```
 
-Backups survive uninstallation on purpose. Remove old backup directories
-yourself when they are no longer useful.
+Uninstall also restores the oldest backup that lacks the rice marker, so an
+earlier user configuration comes back without manual copying. Backups survive
+uninstallation on purpose. Remove old backup directories yourself when they are
+no longer useful.
 
 If a run is interrupted, rerun `rice apply`. Generated files are written to a
 temporary file in the destination directory and renamed into place, so a partial
@@ -139,16 +149,20 @@ Uninstall disables the rice user units and removes only artifacts the installer
 created:
 
 - `$XDG_DATA_HOME/rice`
+- `$XDG_DATA_HOME/noctalia-plugins/<rice plugin>`, with the shared parent
+  removed only when empty
 - `$XDG_CONFIG_HOME/rice/rice.toml`
-- `$XDG_CONFIG_HOME/noctalia/rice.toml`
+- `$XDG_CONFIG_HOME/noctalia/config.toml`, or the oldest pre-rice backup when
+  one exists
 - `$XDG_CONFIG_HOME/systemd/user/rice-*`
 - `$XDG_DATA_HOME/kwin/scripts/rice-placement`
 - `$XDG_STATE_HOME/rice/runtime.json`
 - `$XDG_STATE_HOME/rice/theme-current`
 - `$HOME/.local/bin/rice`, and only when the file contains the rice CLI marker
 
-It keeps your wallpapers, apply backups, unrelated Noctalia configuration,
-unrelated systemd units, and unrelated KWin scripts.
+It keeps your wallpapers, apply backups, unrelated Noctalia configuration
+(including `media.json`), a hand-written `config.toml` that lacks the rice
+marker, unrelated systemd units, and unrelated KWin scripts.
 
 ## Development Install
 
@@ -175,6 +189,8 @@ bash -n install.sh uninstall.sh bin/rice
 
 ## Next Steps
 
+- Read [Noctalia](NOCTALIA.md) to verify the bar, plugins, and media opt-in.
+- Read [Shortcuts](SHORTCUTS.md) to check bindings and conflict cleanup.
 - Read [Configuration](CONFIGURATION.md) before editing `rice.toml`.
 - Read [Placement](PLACEMENT.md) to map outputs and zones.
 - Read [Startup](STARTUP.md) to separate login apps from per-activity apps.

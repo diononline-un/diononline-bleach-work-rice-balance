@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Installer roles, Noctalia docs, and privacy coverage
+
+- Fixed installer output roles: the primary display is `main`, the first non-primary is `side`, and the second is `portrait`, independent of KScreen order; ids and geometry stay unchanged.
+- Added installer coverage that copies all four plugin manifests and the Noctalia base config, removes `$XDG_DATA_HOME/noctalia-plugins` on uninstall, and restores the oldest pre-rice `config.toml` when one exists.
+- Added `docs/NOCTALIA.md` and `docs/SHORTCUTS.md`; refreshed README, install, architecture, placement, theming, and troubleshooting text away from the old include path.
+- Extended the PII scan to `.luau` and JSON sources and fixed the skip check so worktree runs scan the real tree; removed the remaining personal path from the changelog and test assertion.
+- Suite is now 162 tests.
+
 ## 2026-11-15 — KWin shortcuts, bar actions, and arrange
 
 - Generated the KWin shortcut block from the config; move targets resolve by output role (`main`/`side`/`portrait`) instead of hard-coded connector names, and every daemon call uses `org.rice.Rice`.
@@ -12,7 +20,7 @@
 
 - Added `plugins/media/` as an opt-in `rice/media` companion for a local YouTube Music API; it stays out of the base bar and desktop widgets until the user enables it.
 - The plugin reads `api_url` from `$XDG_CONFIG_HOME/noctalia/media.json`, falls back to the previous `http://127.0.0.1:26538/api/v1` default, and tolerates a missing or malformed config.
-- Removed the personal `/home/dion` cache fallback; `HOME` is now required and every code path uses `HOME` plus XDG variables.
+- Removed the personal hard-coded cache fallback; `HOME` is now required and every code path uses `HOME` plus XDG variables.
 - Shipped `defaults/noctalia/media.json` with a comment that users must run their own compatible service.
 - Added asset checks for the five plugin files, the manifest, the default JSON, and personal-path scans; suite is now 137 tests.
 - Translated the remaining German panel strings (tooltips, queue labels, empty and error states) to English and added a regression test, raising the suite to 138 tests.

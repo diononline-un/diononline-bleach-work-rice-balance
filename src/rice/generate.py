@@ -11,6 +11,9 @@ ARRANGE_TEMPLATE = (
 NOCTALIA_BASE = (
     Path(__file__).resolve().parents[2] / "defaults" / "noctalia" / "config.toml"
 )
+# `apply` writes this header above the merged Noctalia config so uninstall can
+# distinguish a rice-owned file from a hand-written one.
+NOCTALIA_GENERATED_MARKER = "# Noctalia base configuration installed by rice."
 SYSTEMD_UNITS = {
     "rice-daemon.service": "rice daemon",
     "rice-startup.service": "rice startup",
@@ -139,7 +142,7 @@ def generate_noctalia(config: dict) -> str:
         "widget_order": [f"rice_{index}" for index in range(len(widgets))],
         "widget": {f"rice_{index}": widget for index, widget in enumerate(widgets)},
     }
-    return tomli_w.dumps(data)
+    return NOCTALIA_GENERATED_MARKER + "\n" + tomli_w.dumps(data)
 
 
 def generate_runtime(config: dict) -> dict:

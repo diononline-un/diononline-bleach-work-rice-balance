@@ -136,6 +136,6 @@ The intended workflow is:
 - Animated or video wallpaper files are not supported.
 - Fade or transition settings are not part of the current core.
 - `rice apply` does not enable the theme units, as described above.
-- The generated Noctalia include covers widget anchors, not theme colors or
-  bar styling.
+- The generated Noctalia configuration covers widget anchors and the base bar,
+  not theme colors or plugin styling beyond the shipped defaults.
 - The theme panel plugin requires ImageMagick (`magick`) to render thumbnails.

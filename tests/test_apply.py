@@ -33,7 +33,11 @@ def test_apply_writes_generated_files_and_backs_up(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(home / ".local/state"))
     result = apply_config(config, runner=lambda *args, **kwargs: None)
     assert any("main.js" in str(path) for path in result.changed)
-    assert (home / ".config/noctalia/config.toml").exists()
+    merged = home / ".config/noctalia/config.toml"
+    assert merged.exists()
+    assert merged.read_text(encoding="utf-8").startswith(
+        "# Noctalia base configuration installed by rice."
+    )
 
 
 def test_apply_writes_kwin_metadata_runtime_and_units(tmp_path, monkeypatch):

@@ -24,12 +24,17 @@ from pathlib import Path
 from .apps import load_catalog, resolve_choices
 from .apply import apply_config
 from .config import load_config, save_config, validate_config
+from .generate import NOCTALIA_GENERATED_MARKER
 from .paths import config_home, config_path, data_home, state_home
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APPS_CATALOG = REPO_ROOT / "defaults/apps.toml"
 DEFAULT_CONFIG = REPO_ROOT / "defaults/rice.toml"
 OS_RELEASE = Path("/etc/os-release")
+OUTPUT_ROLES = ("side", "portrait")
+# Plugin directories shipped by rice. Uninstall removes only these names from
+# the shared Noctalia plugin directory so unrelated user plugins stay in place.
+PLUGIN_NAMES = ("themes", "profile", "cheatsheet", "media")
 
 BASE_PACKAGES = [
     "python",
@@ -166,10 +171,16 @@ def build_initial_config(choices: dict, dry_run: bool = False) -> dict:
     if not outputs:
         raise RuntimeError("no connected output detected; connect a display and retry")
     main = next((output for output in outputs if output.primary), outputs[0])
+    roles = {main.id: "main"}
+    secondary = [output for output in outputs if output.id != main.id]
+    for index, output in enumerate(secondary):
+        roles[output.id] = (
+            OUTPUT_ROLES[index] if index < len(OUTPUT_ROLES) else "extra"
+        )
     base["output"] = [
         {
             "id": output.id,
-            "role": "main" if output is main else "secondary",
+            "role": roles[output.id],
             "connector": output.connector,
             "primary": output.primary,
             "x": output.x,
@@ -310,11 +321,74 @@ def _remove_wrapper(bin_dir: Path, dry_run: bool) -> None:
         _remove(wrapper, dry_run)
 
 
+def _is_generated_noctalia(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return text.startswith(NOCTALIA_GENERATED_MARKER)
+
+
+def _original_noctalia_backup() -> Path | None:
+    """Return the oldest backup that predates rice, or ``None``.
+
+    The first apply backs up whatever Noctalia config existed before rice. Later
+    applies also back up the generated file, so the newest backup is usually a
+    rice artifact; scanning oldest first skips generated copies by their marker.
+    """
+    root = state_home() / "rice" / "backups"
+    if not root.is_dir():
+        return None
+    for directory in sorted(
+        (path for path in root.iterdir() if path.is_dir()), key=lambda path: path.name
+    ):
+        candidate = directory / "config.toml"
+        if candidate.is_file() and not _is_generated_noctalia(candidate):
+            return candidate
+    return None
+
+
+def _remove_noctalia_plugins(dry_run: bool) -> None:
+    root = data_home() / "noctalia-plugins"
+    if not root.is_dir():
+        return
+    for name in PLUGIN_NAMES:
+        plugin = root / name
+        if plugin.exists():
+            _remove(plugin, dry_run)
+    if dry_run:
+        print("DRY-RUN: remove", root, "when empty")
+        return
+    try:
+        root.rmdir()
+    except OSError:
+        # Other plugins or files remain; keep the shared directory.
+        pass
+
+
+def _uninstall_noctalia_config(config_file: Path, dry_run: bool) -> None:
+    """Remove the generated Noctalia config or restore the pre-rice backup."""
+    if config_file.exists() and not _is_generated_noctalia(config_file):
+        # A hand-written config.toml is not rice-owned; leave it untouched.
+        return
+    backup = _original_noctalia_backup()
+    if backup is None:
+        _remove(config_file, dry_run)
+        return
+    if dry_run:
+        print("DRY-RUN: restore", backup, "to", config_file)
+        return
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(backup, config_file)
+
+
 def uninstall(dry_run=False, runner=None):
     """Disable rice units and remove only the artifacts the installer created.
 
     ``$XDG_STATE_HOME/rice`` is kept because it holds apply backups; only the
-    runtime and theme state files are removed.
+    runtime and theme state files are removed. A pre-rice Noctalia
+    ``config.toml`` found in the oldest backup is restored instead of leaving
+    the generated file in place.
     """
     run = runner or (lambda command: _run(command, dry_run, check=False))
     units = [
@@ -335,7 +409,6 @@ def uninstall(dry_run=False, runner=None):
 
     targets = [
         data_home() / "rice",
-        config_home() / "noctalia" / "config.toml",
         data_home() / "kwin" / "scripts" / "rice-placement",
         config_path(),
         state_home() / "rice" / "runtime.json",
@@ -344,6 +417,8 @@ def uninstall(dry_run=False, runner=None):
     targets.extend(sorted((config_home() / "systemd/user").glob("rice-*")))
     for target in targets:
         _remove(target, dry_run)
+    _remove_noctalia_plugins(dry_run)
+    _uninstall_noctalia_config(config_home() / "noctalia" / "config.toml", dry_run)
     _remove_wrapper(Path.home() / ".local/bin", dry_run)
 
 
