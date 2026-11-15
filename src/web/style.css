@@ -335,6 +335,33 @@ code,
   gap: 12px;
 }
 
+.output-panel {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-input);
+}
+
+.output-panel h3 {
+  margin: 0;
+  color: var(--text);
+}
+
+.output-panel p {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+}
+
+.zone-card {
+  margin-top: var(--gap);
+}
+
+.zone-card .buttons {
+  margin-top: 10px;
+}
+
 .canvas {
   position: relative;
   width: 100%;
@@ -366,8 +393,15 @@ code,
   color: var(--text);
   font-family: var(--mono);
   font-size: 0.75rem;
-  cursor: pointer;
+  cursor: grab;
   overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.zone:focus-visible {
+  outline: 1px solid var(--accent-strong);
+  outline-offset: 1px;
 }
 
 .zone:hover {
@@ -377,6 +411,13 @@ code,
 .zone[aria-selected="true"] {
   border-color: var(--accent-strong);
   background: rgba(122, 162, 247, 0.28);
+}
+
+.zone-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .resize-zone {
@@ -389,6 +430,7 @@ code,
   border-top: 1px solid var(--accent);
   background: var(--accent);
   cursor: nwse-resize;
+  touch-action: none;
 }
 
 .error-list {

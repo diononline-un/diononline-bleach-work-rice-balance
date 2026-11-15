@@ -20,10 +20,14 @@ const state = {
   validation: [],
   outputs: [],
   catalog: null,
-  selected: { tab: "apps", zone: null },
+  selected: { tab: "apps", zone: null, output: null },
+  drag: null,
   dirty: false,
   busy: false,
 };
+
+const ZONE_MIN = 0.05;
+const ZONE_MAX = 1;
 
 const elements = {
   tabs: document.getElementById("tabs"),
@@ -296,56 +300,262 @@ function renderOutputs(panel) {
   );
 }
 
+// -- zone geometry --------------------------------------------------------
+
+function snap(value) {
+  // Zone geometry is normalized to two decimals.
+  return Math.round(value * 100) / 100;
+}
+
+function clampAxis(value, minimum, maximum) {
+  const bounded = Math.min(1, Math.max(0, value));
+  return Math.min(Math.max(bounded, minimum), maximum);
+}
+
+function findZone(zoneId) {
+  return asArray(state.config && state.config.zone).find((zone) => zone.id === zoneId) || null;
+}
+
+function zonesFor(outputId) {
+  return asArray(state.config.zone).filter((zone) => zone.output === outputId);
+}
+
+function outputAspect(output) {
+  const detected = asArray(state.outputs).find((item) => item.connector === output.connector);
+  if (detected && detected.width > 0 && detected.height > 0) {
+    return detected.width / detected.height;
+  }
+  return 16 / 9;
+}
+
+function placeZone(element, zone) {
+  element.style.left = zone.x * 100 + "%";
+  element.style.top = zone.y * 100 + "%";
+  element.style.width = zone.w * 100 + "%";
+  element.style.height = zone.h * 100 + "%";
+}
+
+// -- zone editing ---------------------------------------------------------
+
+function dragZone(event, zone, handle) {
+  if (event.button && event.button !== 0) return;
+  const canvas = event.currentTarget.closest(".canvas");
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  event.preventDefault();
+
+  const selectionChanged = state.selected.zone !== zone.id || state.selected.output !== zone.output;
+  state.selected.zone = zone.id;
+  state.selected.output = zone.output;
+  state.drag = {
+    zoneId: zone.id,
+    resize: handle === true,
+    moved: false,
+    startX: event.clientX,
+    startY: event.clientY,
+    width: rect.width,
+    height: rect.height,
+    from: { x: zone.x, y: zone.y, w: zone.w, h: zone.h },
+  };
+  if (selectionChanged) render();
+}
+
+function moveDrag(event) {
+  const drag = state.drag;
+  if (!drag) return;
+  const zone = findZone(drag.zoneId);
+  if (!zone) {
+    state.drag = null;
+    return;
+  }
+  const dx = (event.clientX - drag.startX) / drag.width;
+  const dy = (event.clientY - drag.startY) / drag.height;
+  const from = drag.from;
+  const next = { x: from.x, y: from.y, w: from.w, h: from.h };
+  if (drag.resize) {
+    next.w = snap(clampAxis(from.w + dx, ZONE_MIN, Math.max(0, ZONE_MAX - from.x)));
+    next.h = snap(clampAxis(from.h + dy, ZONE_MIN, Math.max(0, ZONE_MAX - from.y)));
+  } else {
+    next.x = snap(clampAxis(from.x + dx, 0, Math.max(0, ZONE_MAX - from.w)));
+    next.y = snap(clampAxis(from.y + dy, 0, Math.max(0, ZONE_MAX - from.h)));
+  }
+  if (next.x === zone.x && next.y === zone.y && next.w === zone.w && next.h === zone.h) {
+    return;
+  }
+  zone.x = next.x;
+  zone.y = next.y;
+  zone.w = next.w;
+  zone.h = next.h;
+  drag.moved = true;
+  const elements = document.querySelectorAll(".canvas .zone");
+  for (const element of elements) {
+    if (element.dataset.zoneId === zone.id) {
+      placeZone(element, zone);
+      break;
+    }
+  }
+}
+
+function endDrag() {
+  const drag = state.drag;
+  if (!drag) return;
+  state.drag = null;
+  if (drag.moved) {
+    markDirty();
+    render();
+  }
+}
+
+function activeOutput() {
+  const outputs = asArray(state.config && state.config.output);
+  const zone = findZone(state.selected.zone);
+  const owner = zone ? outputs.find((output) => output.id === zone.output) : null;
+  if (owner) return owner;
+  const selected = outputs.find((output) => output.id === state.selected.output);
+  if (selected) return selected;
+  return outputs.find((output) => output.primary) || outputs[0] || null;
+}
+
+function addZone(outputId) {
+  if (!state.config) return null;
+  const outputs = asArray(state.config.output);
+  const output =
+    outputs.find((item) => item.id === outputId) || outputs.find((item) => item.primary) || outputs[0];
+  if (!output) return null;
+  const zones = asArray(state.config.zone);
+  const used = new Set(zones.map((zone) => zone.id));
+  let index = 1;
+  while (used.has("custom-" + index)) index += 1;
+  const zone = {
+    id: "custom-" + index,
+    output: output.id,
+    kind: "app",
+    x: 0.1,
+    y: 0.1,
+    w: 0.3,
+    h: 0.3,
+    gap_px: 8,
+  };
+  zones.push(zone);
+  state.config.zone = zones;
+  state.selected.zone = zone.id;
+  state.selected.output = output.id;
+  markDirty();
+  render();
+  return zone;
+}
+
+function removeZone(zoneId) {
+  const zone = findZone(zoneId);
+  if (!zone) {
+    setStatus("Select a zone before removing it.", "warn");
+    return false;
+  }
+  const confirmed = window.confirm(
+    "Remove zone " + zone.id + " and every placement that references it?",
+  );
+  if (!confirmed) {
+    setStatus("Remove cancelled.", "warn");
+    return false;
+  }
+  state.config.zone = asArray(state.config.zone).filter((item) => item.id !== zone.id);
+  state.config.placement = asArray(state.config.placement).filter(
+    (placement) => placement.zone !== zone.id,
+  );
+  if (state.selected.zone === zone.id) state.selected.zone = null;
+  markDirty();
+  render();
+  return true;
+}
+
+function zoneElement(zone) {
+  const element = make("div", "zone");
+  element.dataset.zoneId = zone.id;
+  placeZone(element, zone);
+  element.setAttribute("role", "button");
+  element.setAttribute("tabindex", "0");
+  element.setAttribute(
+    "aria-label",
+    "Zone " + zone.id + ", " + zone.kind + ", x " + zone.x + ", y " + zone.y,
+  );
+  if (state.selected.zone === zone.id) {
+    element.setAttribute("aria-selected", "true");
+  }
+  element.append(make("span", "zone-label", zone.id));
+
+  const handle = make("span", "resize-zone");
+  handle.dataset.handle = "resize";
+  handle.title = "Resize zone " + zone.id;
+  handle.setAttribute("role", "presentation");
+  handle.addEventListener("pointerdown", function (event) {
+    event.stopPropagation();
+    dragZone(event, zone, true);
+  });
+  element.append(handle);
+
+  element.addEventListener("pointerdown", function (event) {
+    if (event.target.closest(".resize-zone")) return;
+    dragZone(event, zone, false);
+  });
+  element.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    state.selected.zone = zone.id;
+    state.selected.output = zone.output;
+    render();
+  });
+  return element;
+}
+
 function renderLayout(panel) {
   heading(
     panel,
     "Layout",
-    "Zone preview for the primary output. Dragging and resizing arrive in the next task.",
+    "Drag a zone to move it, or drag the handle in its corner to resize it. Edits stay local until Save or Apply.",
   );
   const outputs = asArray(state.config.output);
   if (!outputs.length) {
     panel.append(make("p", "muted", "Add an output before drawing zones."));
     return;
   }
-  const primary = outputs.find((output) => output.primary) || outputs[0];
-  const detected = asArray(state.outputs).find((item) => item.connector === primary.connector);
-  const aspects =
-    detected && detected.width > 0 && detected.height > 0
-      ? detected.width / detected.height
-      : 16 / 9;
 
   const preview = make("div", "layout-preview");
-  const canvas = make("div", "canvas");
-  canvas.style.aspectRatio = String(aspects);
-  canvas.setAttribute("aria-label", "Zone preview for " + primary.id);
+  for (const output of outputs) {
+    const section = make("section", "output-panel");
+    const title = make("h3", "", output.id + " / " + (output.role || "no role"));
+    const detected = asArray(state.outputs).find((item) => item.connector === output.connector);
+    const aspectText =
+      detected && detected.width > 0 && detected.height > 0
+        ? detected.width + "x" + detected.height + " detected"
+        : "16:9 default";
+    section.append(title, make("p", "muted", aspectText));
 
-  const zones = asArray(state.config.zone).filter((zone) => zone.output === primary.id);
-  for (const zone of zones) {
-    const zoneElement = make("div", "zone", zone.id);
-    zoneElement.style.left = zone.x * 100 + "%";
-    zoneElement.style.top = zone.y * 100 + "%";
-    zoneElement.style.width = zone.w * 100 + "%";
-    zoneElement.style.height = zone.h * 100 + "%";
-    zoneElement.dataset.zoneId = zone.id;
-    if (state.selected.zone === zone.id) {
-      zoneElement.setAttribute("aria-selected", "true");
-    }
-    zoneElement.addEventListener("pointerdown", function (event) {
-      event.preventDefault();
-      state.selected.zone = zone.id;
+    const canvas = make("div", "canvas");
+    canvas.dataset.outputId = output.id;
+    canvas.style.aspectRatio = String(outputAspect(output));
+    canvas.setAttribute("role", "group");
+    canvas.setAttribute("aria-label", "Zone layout for " + output.id);
+    canvas.addEventListener("pointerdown", function (event) {
+      if (event.target !== canvas) return;
+      state.selected.output = output.id;
       render();
     });
-    canvas.append(zoneElement);
-  }
-  preview.append(canvas);
-  if (!zones.length) {
-    preview.append(make("p", "muted", "No zones on this output yet."));
+
+    const zones = zonesFor(output.id);
+    for (const zone of zones) canvas.append(zoneElement(zone));
+    section.append(canvas);
+    if (!zones.length) {
+      section.append(make("p", "muted", "No zones on this output yet."));
+    }
+    preview.append(section);
   }
   panel.append(preview);
 
-  const selected = asArray(state.config.zone).find((zone) => zone.id === state.selected.zone);
+  const target = activeOutput();
+  const selected = findZone(state.selected.zone);
+  const card = make("div", "card zone-card");
   if (selected) {
-    const card = make("div", "card");
     card.append(make("h3", "", "Selected zone " + selected.id));
     const list = make("dl", "kv");
     keyValue(list, "Output", selected.output);
@@ -354,8 +564,32 @@ function renderLayout(panel) {
     keyValue(list, "Size", "w " + selected.w + " / h " + selected.h);
     keyValue(list, "Gap (px)", selected.gap_px);
     card.append(list);
-    panel.append(card);
+  } else {
+    card.append(make("h3", "", "No zone selected"));
+    card.append(make("p", "muted", "Click a zone to select it. New zones go to the selected output."));
   }
+
+  const buttons = make("div", "buttons");
+  const addButton = make("button", "add-zone", "Add zone");
+  addButton.type = "button";
+  addButton.disabled = !target;
+  addButton.setAttribute("aria-label", target ? "Add zone to " + target.id : "Add zone");
+  addButton.addEventListener("click", function () {
+    addZone(target ? target.id : null);
+  });
+  const removeButton = make("button", "remove-zone", "Remove zone");
+  removeButton.type = "button";
+  removeButton.disabled = !selected;
+  removeButton.setAttribute(
+    "aria-label",
+    selected ? "Remove zone " + selected.id : "Remove zone",
+  );
+  removeButton.addEventListener("click", function () {
+    removeZone(state.selected.zone);
+  });
+  buttons.append(addButton, removeButton);
+  card.append(buttons);
+  panel.append(card);
 }
 
 function renderPlacement(panel) {
@@ -619,6 +853,9 @@ function start() {
   elements.validate.addEventListener("click", validateDocument);
   elements.save.addEventListener("click", saveDocument);
   elements.apply.addEventListener("click", applyDocument);
+  document.addEventListener("pointermove", moveDrag);
+  document.addEventListener("pointerup", endDrag);
+  document.addEventListener("pointercancel", endDrag);
 
   state.token = readToken();
   if (!state.token) {

@@ -72,3 +72,35 @@ def test_js_keeps_dirty_guard_and_api_helpers():
         "Content-Type",
     ):
         assert marker in js
+
+
+def test_layout_editor_supports_drag_resize_add_and_remove():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    for token in ("pointerdown", "pointermove", "pointerup", "resize-zone", "add-zone", "remove-zone"):
+        assert token in js
+
+
+def test_zone_updates_stay_relative():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    assert "Math.min(1" in js
+    assert "Math.max(0" in js
+
+
+def test_layout_renders_a_canvas_per_output_with_zone_helpers():
+    js = (WEB / "app.js").read_text(encoding="utf-8")
+    assert 'for (const output of outputs)' in js
+    assert 'make("div", "canvas")' in js
+    assert "canvas.dataset.outputId = output.id" in js
+    assert "function outputAspect" in js
+    assert "16 / 9" in js
+    for helper in (
+        "function renderLayout",
+        "function dragZone",
+        "function addZone",
+        "function removeZone",
+        "function snap",
+    ):
+        assert helper in js
+    assert '"custom-" + index' in js
+    assert "kind: \"app\"" in js
+    assert "gap_px: 8" in js

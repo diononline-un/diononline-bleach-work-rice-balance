@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Canvas zone editor
+
+- Layout tab now renders one aspect-correct canvas per configured output, using detected width/height when available and 16:9 otherwise; each canvas carries its own accessible label and zones.
+- Zones drag with pointer events and resize through a `.resize-zone` corner handle; geometry snaps to 0.01, clamps to `[0,1]`, enforces a 0.05 minimum, and keeps `x+w`/`y+h` inside the canvas.
+- Added a selected-zone card with `add-zone`/`remove-zone` buttons, kind and gap readout; adding creates a unique `custom-<n>` app zone on the selected output, removing confirms first and drops dependent placement rows.
+- All edits mutate `state.config` only and mark the document dirty; no API call happens until Save or Apply.
+- Added three web asset tests, including drag/resize/add/remove tokens and a per-output canvas check. Suite is now 194 tests.
+
 ## 2026-11-15 — Configurator shell and tabs
 
 - Added `src/web/index.html`, `src/web/style.css`, and `src/web/app.js`: dark responsive shell with tabs Apps, Outputs, Layout, Placement, Startup, Autostart, Widgets, Theme, and Apply.
