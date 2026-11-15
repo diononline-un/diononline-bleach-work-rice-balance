@@ -1,0 +1,44 @@
+# Ultrawide preset.
+# Relative 0..1 zone geometry inside the usable output area.
+name = "ultrawide"
+description = "One wide output with shell edges and two center app tiles."
+
+[[zone]]
+id = "edge-left"
+output = "main"
+kind = "shell"
+x = 0.0
+y = 0.0
+w = 0.20
+h = 1.0
+gap_px = 8
+
+[[zone]]
+id = "center-left"
+output = "main"
+kind = "app"
+x = 0.22
+y = 0.0
+w = 0.28
+h = 1.0
+gap_px = 8
+
+[[zone]]
+id = "center-right"
+output = "main"
+kind = "app"
+x = 0.50
+y = 0.0
+w = 0.28
+h = 1.0
+gap_px = 8
+
+[[zone]]
+id = "edge-right"
+output = "main"
+kind = "shell"
+x = 0.80
+y = 0.0
+w = 0.20
+h = 1.0
+gap_px = 8

@@ -1,0 +1,24 @@
+# Single-output split preset.
+# Relative 0..1 zone geometry inside the usable output area.
+name = "single-split"
+description = "One output with two center app tiles."
+
+[[zone]]
+id = "center-left"
+output = "main"
+kind = "app"
+x = 0.0
+y = 0.0
+w = 0.5
+h = 1.0
+gap_px = 8
+
+[[zone]]
+id = "center-right"
+output = "main"
+kind = "app"
+x = 0.5
+y = 0.0
+w = 0.5
+h = 1.0
+gap_px = 8

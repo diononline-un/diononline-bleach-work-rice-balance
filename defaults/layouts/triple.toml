@@ -1,0 +1,54 @@
+# Triple-monitor preset.
+# Relative 0..1 zone geometry inside each output's usable area.
+name = "triple"
+description = "Three outputs: main 50/50 split, side 50/50 split, portrait full-height."
+
+[[zone]]
+id = "main-left"
+output = "main"
+kind = "app"
+x = 0.0
+y = 0.0
+w = 0.5
+h = 1.0
+gap_px = 8
+
+[[zone]]
+id = "main-right"
+output = "main"
+kind = "app"
+x = 0.5
+y = 0.0
+w = 0.5
+h = 1.0
+gap_px = 8
+
+[[zone]]
+id = "side-left"
+output = "side"
+kind = "app"
+x = 0.0
+y = 0.0
+w = 0.5
+h = 1.0
+gap_px = 8
+
+[[zone]]
+id = "side-right"
+output = "side"
+kind = "app"
+x = 0.5
+y = 0.0
+w = 0.5
+h = 1.0
+gap_px = 8
+
+[[zone]]
+id = "portrait-full"
+output = "portrait"
+kind = "app"
+x = 0.0
+y = 0.0
+w = 1.0
+h = 1.0
+gap_px = 8
