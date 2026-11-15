@@ -6,6 +6,7 @@ import pytest
 from rice.config import validate_config
 from rice.installer import (
     build_initial_config,
+    install_packages,
     install_tree,
     package_plan,
     preflight,
@@ -110,6 +111,27 @@ def test_build_initial_config_creates_missing_activities(monkeypatch):
     assert config["activities"]["work"]["kde_id"] == "created-work"
 
 
+def test_build_initial_config_dry_run_skips_activity_creation(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setattr("rice.outputs.detect_outputs", _fake_outputs)
+    monkeypatch.setattr(
+        "rice.activities.list_activities", lambda: {"Private": "existing-id"}
+    )
+
+    def fail(name):
+        raise AssertionError("dry-run must not create KDE activities")
+
+    monkeypatch.setattr("rice.activities.ensure_activity", fail)
+
+    config = build_initial_config(CHOICES, dry_run=True)
+
+    assert config["activities"]["private"]["kde_id"] == "existing-id"
+    assert config["activities"]["work"]["kde_id"] == ""
+    assert not (tmp_path / "config/rice/rice.toml").exists()
+
+
 def test_build_initial_config_rejects_invalid_choices(monkeypatch):
     monkeypatch.setattr("rice.outputs.detect_outputs", _fake_outputs)
     choices = dict(CHOICES, terminal="xterm")
@@ -177,13 +199,39 @@ def test_install_tree_dry_run_changes_nothing(tmp_path: Path):
     assert not bin_dir.exists()
 
 
+def test_install_packages_splits_official_and_aur(monkeypatch):
+    calls = []
+
+    def fake_run(command, dry_run=False):
+        calls.append(list(command))
+
+    monkeypatch.setattr("rice.installer._run", fake_run)
+
+    install_packages(["firefox", "noctalia", "python"], "paru")
+
+    assert calls == [
+        [
+            "sudo",
+            "pacman",
+            "-S",
+            "--needed",
+            "--noconfirm",
+            "firefox",
+            "python",
+        ],
+        ["paru", "-S", "--needed", "--noconfirm", "noctalia"],
+    ]
+
+
 def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, capsys):
     home = tmp_path / "home"
     data = tmp_path / "data"
     config = tmp_path / "config"
+    state = tmp_path / "state"
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("XDG_DATA_HOME", str(data))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
+    monkeypatch.setenv("XDG_STATE_HOME", str(state))
 
     (data / "rice/src/rice").mkdir(parents=True)
     (data / "kwin/scripts/rice-placement/contents/code").mkdir(parents=True)
@@ -193,6 +241,21 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
     (config / "noctalia").mkdir(parents=True)
     (config / "noctalia/rice.toml").write_text("", encoding="utf-8")
     (config / "noctalia/other.toml").write_text("", encoding="utf-8")
+    (config / "rice").mkdir()
+    (config / "rice/rice.toml").write_text("", encoding="utf-8")
+    (state / "rice/backups").mkdir(parents=True)
+    (state / "rice/runtime.json").write_text("{}", encoding="utf-8")
+    (state / "rice/theme-current").write_text("", encoding="utf-8")
+    (state / "rice/backups/keep.tar").write_text("backup", encoding="utf-8")
+    (config / "systemd/user").mkdir(parents=True)
+    for unit in (
+        "rice-daemon.service",
+        "rice-startup.service",
+        "rice-theme-boot.service",
+        "rice-theme-hourly.timer",
+    ):
+        (config / "systemd/user" / unit).write_text("", encoding="utf-8")
+    (config / "systemd/user/other.service").write_text("", encoding="utf-8")
     wrapper = home / ".local/bin/rice"
     wrapper.parent.mkdir(parents=True)
     wrapper.write_text("exec python3 -m rice.cli \"$@\"\n", encoding="utf-8")
@@ -211,12 +274,20 @@ def test_uninstall_removes_only_rice_artifacts(tmp_path: Path, monkeypatch, caps
             "--now",
             "rice-daemon.service",
             "rice-startup.service",
+            "rice-theme-boot.service",
+            "rice-theme-hourly.timer",
         ]
     ]
     assert not (data / "rice").exists()
     assert not (data / "kwin/scripts/rice-placement").exists()
     assert not (config / "noctalia/rice.toml").exists()
     assert (config / "noctalia/other.toml").is_file()
+    assert not (config / "rice/rice.toml").exists()
+    assert not (state / "rice/runtime.json").exists()
+    assert not (state / "rice/theme-current").exists()
+    assert (state / "rice/backups/keep.tar").is_file()
+    assert not list((config / "systemd/user").glob("rice-*"))
+    assert (config / "systemd/user/other.service").is_file()
     assert not wrapper.exists()
     assert (wallpapers / "keep.png").is_file()
 
@@ -237,10 +308,10 @@ def test_preflight_accepts_arch_family(tmp_path: Path):
     release.write_text(
         'ID=cachyos\nID_LIKE=arch\nPRETTY_NAME="CachyOS"\n', encoding="utf-8"
     )
-    commands = []
+    probes = []
 
     def runner(command, **kwargs):
-        commands.append(command)
+        probes.append((command, kwargs.get("timeout")))
         return type("Result", (), {"returncode": 0})()
 
     preflight(
@@ -249,7 +320,21 @@ def test_preflight_accepts_arch_family(tmp_path: Path):
         runner=runner,
     )
 
-    assert commands == [["plasmashell", "--version"], ["noctalia", "--version"]]
+    assert probes == [(["plasmashell", "--version"], 10)]
+
+
+def test_preflight_does_not_require_noctalia_before_install(tmp_path: Path):
+    release = tmp_path / "os-release"
+    release.write_text("ID=arch\n", encoding="utf-8")
+    probed = []
+
+    def runner(command, **kwargs):
+        probed.extend(command)
+        return type("Result", (), {"returncode": 0})()
+
+    preflight(os_release=release, environ={"DISPLAY": ":0"}, runner=runner)
+
+    assert "noctalia" not in probed
 
 
 def test_preflight_rejects_other_distribution(tmp_path: Path):

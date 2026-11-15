@@ -3,7 +3,7 @@
 
 The installer performs four steps:
 
-1. Preflight the host (Arch/CachyOS, Plasma, Noctalia, graphical session).
+1. Preflight the host (Arch/CachyOS, Plasma, graphical session).
 2. Install the required and selected packages with pacman or an AUR helper.
 3. Copy the runtime tree into ``$XDG_DATA_HOME/rice`` and write the ``rice``
    command wrapper into ``~/.local/bin``.
@@ -24,7 +24,7 @@ from pathlib import Path
 from .apps import load_catalog, resolve_choices
 from .apply import apply_config
 from .config import load_config, save_config, validate_config
-from .paths import config_home, config_path, data_home
+from .paths import config_home, config_path, data_home, state_home
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 APPS_CATALOG = REPO_ROOT / "defaults/apps.toml"
@@ -56,7 +56,10 @@ AUR_PACKAGES = {
 
 ARCH_IDS = {"arch", "archlinux", "cachyos"}
 GRAPHICAL_SESSION_TYPES = {"wayland", "x11"}
-TOOLS = (("plasmashell", ["plasmashell", "--version"]), ("noctalia", ["noctalia", "--version"]))
+# Noctalia is installed by the installer itself, so it must not be a preflight
+# prerequisite. Only tools shipped by the base Plasma session are probed.
+TOOLS = (("plasmashell", ["plasmashell", "--version"]),)
+PROBE_TIMEOUT = 10
 
 
 def package_plan(choices: dict) -> list[str]:
@@ -144,8 +147,12 @@ def _prune_app_references(config: dict, app_ids: set[str]) -> None:
         section["apps"] = [app for app in section.get("apps", []) if app in app_ids]
 
 
-def build_initial_config(choices: dict) -> dict:
-    """Build a validated configuration from the defaults and detected hardware."""
+def build_initial_config(choices: dict, dry_run: bool = False) -> dict:
+    """Build a validated configuration from the defaults and detected hardware.
+
+    With ``dry_run`` the function never mutates the KDE session: missing
+    activities keep an empty id instead of being created.
+    """
     from .activities import ensure_activity, list_activities
     from .layouts import choose_layout, default_placements, layout_config
     from .outputs import detect_outputs
@@ -188,7 +195,10 @@ def build_initial_config(choices: dict) -> dict:
     _prune_app_references(base, set(apps))
     known = list_activities()
     for role, name in (("private", "Private"), ("work", "Work")):
-        base["activities"][role]["kde_id"] = known.get(name) or ensure_activity(name)
+        if dry_run:
+            base["activities"][role]["kde_id"] = known.get(name, "")
+        else:
+            base["activities"][role]["kde_id"] = known.get(name) or ensure_activity(name)
     return base
 
 
@@ -237,9 +247,19 @@ def preflight(os_release: Path | None = None, environ=None, runner=None) -> None
     run = runner or subprocess.run
     for label, command in TOOLS:
         try:
-            result = run(command, capture_output=True, text=True, check=False)
+            result = run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=PROBE_TIMEOUT,
+            )
         except OSError:
             raise RuntimeError(f"{label} is not installed; install it and retry") from None
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                f"{label} --version timed out after {PROBE_TIMEOUT}s"
+            ) from None
         if getattr(result, "returncode", 0) != 0:
             raise RuntimeError(f"{label} --version failed; check the installation")
 
@@ -258,7 +278,7 @@ class Installer:
         install_packages(packages, helper, dry_run)
         repo = REPO_ROOT
         install_tree(repo, data_home(), Path.home() / ".local/bin", dry_run)
-        config = build_initial_config(choices)
+        config = build_initial_config(choices, dry_run=dry_run)
         errors = validate_config(config)
         if errors:
             raise ValueError("; ".join(errors))
@@ -291,16 +311,19 @@ def _remove_wrapper(bin_dir: Path, dry_run: bool) -> None:
 
 
 def uninstall(dry_run=False, runner=None):
-    """Disable rice units and remove only the artifacts the installer created."""
+    """Disable rice units and remove only the artifacts the installer created.
+
+    ``$XDG_STATE_HOME/rice`` is kept because it holds apply backups; only the
+    runtime and theme state files are removed.
+    """
     run = runner or (lambda command: _run(command, dry_run, check=False))
-    command = [
-        "systemctl",
-        "--user",
-        "disable",
-        "--now",
+    units = [
         "rice-daemon.service",
         "rice-startup.service",
+        "rice-theme-boot.service",
+        "rice-theme-hourly.timer",
     ]
+    command = ["systemctl", "--user", "disable", "--now", *units]
     if dry_run and runner is None:
         _run(command, dry_run, check=False)
     else:
@@ -313,7 +336,11 @@ def uninstall(dry_run=False, runner=None):
         data_home() / "rice",
         config_home() / "noctalia" / "rice.toml",
         data_home() / "kwin" / "scripts" / "rice-placement",
+        config_path(),
+        state_home() / "rice" / "runtime.json",
+        state_home() / "rice" / "theme-current",
     ]
+    targets.extend(sorted((config_home() / "systemd/user").glob("rice-*")))
     for target in targets:
         _remove(target, dry_run)
     _remove_wrapper(Path.home() / ".local/bin", dry_run)
