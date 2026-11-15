@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-15 — Solid application windows
+
+- `rice appearance apply` now removes legacy rice opacity rules and adds none.
+- Application windows are fully opaque; Noctalia bar, panels, capsules, and desktop widgets keep their glass styling.
+- Updated tests and docs for the solid-window policy.
+
 ## 2026-11-15 — Keep browsers fully opaque
 
 - Removed the browser KWin opacity guard and browser opacity rules.

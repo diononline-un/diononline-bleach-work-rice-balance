@@ -1,8 +1,8 @@
-"""KWin appearance profile: controlled whole-window transparency.
+"""KWin appearance profile: solid application windows.
 
-KWin cannot selectively make only an app's empty surfaces transparent. This
-module applies conservative active/inactive opacity rules for normal windows
-and keeps fullscreen apps and games fully opaque.
+This module removes rice-owned opacity rules. The rice shell (Noctalia) keeps
+its own glass styling; application windows use the compositor default of 100%
+opacity.
 """
 
 from __future__ import annotations
@@ -20,20 +20,6 @@ from .paths import config_home, state_home
 
 RULE_PREFIX = "rice-appearance-"
 RULE_ORDER = "General"
-RULE_APPS = (
-    ("code", "VS Code", "code", 92, 86),
-    ("claude", "Claude", "claude", 94, 88),
-    ("claude-desktop", "Claude Desktop", "com.anthropic.Claude", 94, 88),
-    ("opencode", "OpenCode", "ai.opencode.desktop", 92, 86),
-    ("slack", "Slack", "slack", 94, 88),
-    ("discord", "Discord", "discord", 94, 88),
-    ("dolphin", "Dolphin", "dolphin", 96, 92),
-    ("obsidian", "Obsidian", "obsidian", 94, 88),
-    ("thunderbird", "Thunderbird", "thunderbird", 94, 88),
-)
-EXCEPTION_GAMES = "games"
-EXCEPTION_MEDIA = "media"
-
 
 
 @dataclass(frozen=True)
@@ -60,60 +46,6 @@ def _read(path: Path) -> configparser.RawConfigParser:
     if not parser.has_section(RULE_ORDER):
         parser.add_section(RULE_ORDER)
     return parser
-
-
-def _set(parser: configparser.RawConfigParser, group: str, values: dict) -> None:
-    if not parser.has_section(group):
-        parser.add_section(group)
-    for key, value in values.items():
-        parser.set(group, key, str(value))
-
-
-def _base_values(description: str, active: int, inactive: int) -> dict:
-    return {
-        "Description": description,
-        "opacityactive": active,
-        "opacityactiverule": 2,
-        "opacityinactive": inactive,
-        "opacityinactiverule": 2,
-        "types": 1,
-    }
-
-
-def _rule_groups() -> list[tuple[str, dict]]:
-    groups: list[tuple[str, dict]] = [
-        (
-            RULE_PREFIX + EXCEPTION_GAMES,
-            {
-                **_base_values("Rice appearance: game exception", 100, 100),
-                "wmclass": "steam|steam_app_.*|gamescope",
-                "wmclassmatch": 3,
-                "wmclasscomplete": "false",
-            },
-        ),
-        (
-            RULE_PREFIX + EXCEPTION_MEDIA,
-            {
-                **_base_values("Rice appearance: media exception", 100, 100),
-                "wmclass": "vlc|mpv|celluloid|haruna|smplayer|com.github.th-ch.youtube-music",
-                "wmclassmatch": 3,
-                "wmclasscomplete": "false",
-            },
-        ),
-    ]
-    for slug, label, wmclass, active, inactive in RULE_APPS:
-        groups.append(
-            (
-                RULE_PREFIX + slug,
-                {
-                    **_base_values(f"Rice appearance: {label}", active, inactive),
-                    "wmclass": wmclass,
-                    "wmclassmatch": 1,
-                    "wmclasscomplete": "false",
-                },
-            )
-        )
-    return groups
 
 
 def _remove_managed(parser: configparser.RawConfigParser) -> list[str]:
@@ -168,20 +100,11 @@ def apply_rules(
     dry_run: bool = False,
     runner=None,
 ) -> AppearanceResult:
-    """Install the rice opacity rules and reload KWin."""
+    """Remove legacy rice opacity rules; application windows stay solid."""
     path = _rules_path(path)
     parser = _read(path)
     _remove_managed(parser)
-    groups = []
-    for group, values in _rule_groups():
-        _set(parser, group, values)
-        groups.append(group)
-    existing_order = parser.get(RULE_ORDER, "Order", fallback="")
-    parser.set(
-        RULE_ORDER,
-        "Order",
-        ",".join([*(group for group, _ in _rule_groups()), existing_order]).strip(","),
-    )
+    groups: list[str] = []
     if dry_run:
         return AppearanceResult(path, tuple(groups))
     backup = _backup(path)
