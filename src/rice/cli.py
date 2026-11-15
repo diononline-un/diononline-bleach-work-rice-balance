@@ -1,5 +1,6 @@
 import argparse
 import json
+import subprocess
 import sys
 
 from . import __version__
@@ -158,7 +159,14 @@ def main(argv=None):
         return 0
     try:
         return args.func(args) or 0
-    except (ValueError, FileNotFoundError, RuntimeError, KeyError, OSError) as exc:
+    except (
+        ValueError,
+        FileNotFoundError,
+        RuntimeError,
+        KeyError,
+        OSError,
+        subprocess.SubprocessError,
+    ) as exc:
         # Operational failures reach the user as one clean line. argparse keeps
         # its own SystemExit handling for usage errors.
         print(f"rice: {exc}", file=sys.stderr)

@@ -87,3 +87,23 @@ def test_main_reports_operational_errors_without_traceback(monkeypatch, capsys):
     assert "bad config" in captured.err
     assert "Traceback" not in captured.err
     assert "Traceback" not in captured.out
+
+
+def test_main_reports_subprocess_errors_without_traceback(monkeypatch, capsys):
+    import subprocess
+
+    from rice import cli, theme
+
+    def fail(runtime):
+        raise subprocess.CalledProcessError(1, ["magick", "a.png"])
+
+    monkeypatch.setattr(cli, "_runtime", lambda: {})
+    monkeypatch.setattr(theme, "refresh_cache", fail)
+
+    assert cli.main(["theme", "refresh"]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.err.startswith("rice: ")
+    assert len(captured.err.strip().splitlines()) == 1
+    assert "Traceback" not in captured.err
+    assert "Traceback" not in captured.out

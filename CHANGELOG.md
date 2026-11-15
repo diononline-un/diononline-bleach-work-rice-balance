@@ -6,7 +6,8 @@
 - `refresh` builds `$XDG_CACHE_HOME/rice-theme/index.tsv` atomically with 480x270 JPEG thumbnails and fails clearly when `magick` is missing.
 - `panel` toggles `rice/themes:panel` through the same `noctalia msg` status probe the old script used.
 - Moved the theme selector to `plugins/themes/` with argv-based `rice theme` calls, `HOME`/XDG lookups, and no machine-specific paths.
-- Updated theming and install docs; suite is now 120 tests.
+- Updated theming and install docs; suite is now 122 tests.
+- Caught `subprocess.SubprocessError` in the CLI boundary so failed `magick` or `noctalia` calls report one clean `rice:` line instead of a traceback.
 
 ## 2026-11-15 — Core hardening and release hygiene
 

@@ -16,7 +16,7 @@ next_steps:
 # Current State
 
 - Core backend, installer, generated artifacts, docs, tests, and MIT license are implemented on `feat/core`.
-- Full suite: 121 tests passing; integration dry-run and PII gates green.
+- Full suite: 122 tests passing; integration dry-run and PII gates green.
 - Theme CLI parity and the `rice/themes` picker plugin are implemented on `feat/noctalia-ui`.
 - Installer has not yet been exercised on a clean target; live rice is unchanged.
 - `feat/noctalia-ui` is pushed for review but not merged; the web configurator remains a follow-up plan.
