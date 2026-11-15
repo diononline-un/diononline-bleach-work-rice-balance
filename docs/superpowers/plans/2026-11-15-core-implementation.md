@@ -305,7 +305,7 @@ from pathlib import Path
 
 import tomli_w
 
-from .paths import config_path, data_home
+from .paths import config_home, config_path, data_home
 
 REQUIRED_TOP_LEVEL = ("meta", "output", "zone", "app", "placement", "activities")
 
@@ -1800,7 +1800,7 @@ git commit -m "feat: add theme engine and asset manifest"
 # tests/test_installer.py
 from rice.installer import package_plan
 
-CHOICES = {"work_browser": "firefox", "private_browser": "chromium", "youtube_music": False}
+CHOICES = {"work_browser": "firefox", "private_browser": "chromium", "claude": "desktop", "terminal": "alacritty", "youtube_music": False}
 
 
 def test_package_plan_includes_selected_variants():
@@ -1831,7 +1831,7 @@ from pathlib import Path
 from .apps import load_catalog, resolve_choices
 from .apply import apply_config
 from .config import save_config, validate_config
-from .paths import config_path, data_home
+from .paths import config_home, config_path, data_home
 
 
 def package_plan(choices: dict) -> list[str]:
@@ -1871,9 +1871,10 @@ def install_tree(repo: Path, data_dir: Path, bin_dir: Path, dry_run=False):
     shutil.copytree(repo / "templates", install_root / "templates", dirs_exist_ok=True)
     shutil.copytree(repo / "defaults", install_root / "defaults", dirs_exist_ok=True)
     shutil.copytree(repo / "assets", install_root / "assets", dirs_exist_ok=True)
-    for plugin in (repo / "plugins").iterdir():
-        if plugin.is_dir():
-            shutil.copytree(plugin, data_dir / "noctalia-plugins" / plugin.name, dirs_exist_ok=True)
+    if (repo / "plugins").is_dir():
+        for plugin in (repo / "plugins").iterdir():
+            if plugin.is_dir():
+                shutil.copytree(plugin, data_dir / "noctalia-plugins" / plugin.name, dirs_exist_ok=True)
     bin_dir.mkdir(parents=True, exist_ok=True)
     wrapper = bin_dir / "rice"
     wrapper.write_text(
@@ -1914,6 +1915,14 @@ def build_initial_config(choices: dict) -> dict:
     preset = choose_layout(outputs)
     base.update(layout_config(preset, outputs))
     base["placement"] = default_placements(preset, apps)
+    base["theme"] = {
+        "wallpaper_dir": str(Path.home() / "Pictures" / "rice-wallpapers"),
+        "outputs": [output.connector for output in outputs],
+        "same_image_all_outputs": True,
+        "rotation": "hourly",
+        "pause_on_fullscreen": True,
+        "pause_on_idle": True,
+    }
     _prune_app_references(base, set(apps))
     known = list_activities()
     for role, name in (("private", "Private"), ("work", "Work")):
@@ -1941,6 +1950,66 @@ class Installer:
         apply_config(config_path())
 ```
 
+Add an entrypoint so `python3 -m rice.installer` actually runs:
+
+```python
+def main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser(prog="rice-installer")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--work-browser", choices=["chrome", "firefox"], default="firefox")
+    parser.add_argument("--private-browser", choices=["brave", "chromium"], default="chromium")
+    parser.add_argument("--claude", choices=["desktop", "code"], default="desktop")
+    parser.add_argument("--terminal", choices=["alacritty", "kitty"], default="alacritty")
+    parser.add_argument("--youtube-music", action="store_true")
+    parser.add_argument("--steam", action="store_true")
+    parser.add_argument("--discord", action="store_true")
+    parser.add_argument("--opencode", action="store_true")
+    parser.add_argument("--gpu-recorder", action="store_true")
+    parser.add_argument("--uninstall", action="store_true")
+    args = parser.parse_args(argv)
+    if args.uninstall:
+        uninstall(dry_run=args.dry_run)
+        return 0
+    choices = {
+        "work_browser": args.work_browser,
+        "private_browser": args.private_browser,
+        "claude": args.claude,
+        "terminal": args.terminal,
+        "youtube_music": args.youtube_music,
+        "steam": args.steam,
+        "discord": args.discord,
+        "opencode": args.opencode,
+        "gpu_recorder": args.gpu_recorder,
+    }
+    Installer().run(choices, dry_run=args.dry_run)
+    return 0
+
+
+def uninstall(dry_run=False):
+    commands = [
+        ["systemctl", "--user", "disable", "--now", "rice-daemon.service", "rice-startup.service"],
+    ]
+    for command in commands:
+        _run(command, dry_run)
+    targets = [
+        data_home() / "rice",
+        config_home() / "noctalia" / "rice.toml",
+        data_home() / "kwin" / "scripts" / "rice-placement",
+    ]
+    for target in targets:
+        if dry_run:
+            print("DRY-RUN: remove", target)
+        elif target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
 Create `install.sh`:
 
 ```bash
@@ -1948,11 +2017,24 @@ Create `install.sh`:
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+if ! python3 -c "import tomli_w" >/dev/null 2>&1; then
+    sudo pacman -S --needed --noconfirm python-tomli-w
+fi
 exec python3 -m rice.installer "$@"
 ```
 
-`uninstall.sh` calls `rice uninstall`, disables only units whose names start
-with `rice-`, removes the generated KWin script, and restores the latest backup.
+Create `uninstall.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m rice.installer --uninstall "$@"
+```
+
+`uninstall` disables only the `rice-*` units listed above and removes only the
+installed rice tree and generated KWin script; it does not delete backups.
 The installer must verify `/etc/os-release` contains `arch` or `cachyos`,
 `plasmashell --version`, `noctalia --version`, and that a graphical session
 exists before touching files.
