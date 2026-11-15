@@ -817,6 +817,9 @@ CONFIG = {
     "placement": [{"app": "browser", "activity": "private", "zone": "center-left", "mode": "normal"}],
     "activities": {"private": {"name": "Private", "kde_id": "private-uuid"},
                    "work": {"name": "Work", "kde_id": "work-uuid"}},
+    "startup": {"always": [], "private": ["browser"]},
+    "autostart": {"private": {"apps": []}, "work": {"apps": []}},
+    "desktop_widget": [],
 }
 
 
@@ -1019,8 +1022,8 @@ def test_runtime_contains_startup_and_zones():
     assert data["zones"]["center-left"]["w"] == 0.5
 
 
-def test_systemd_units_have_user_exec(tmp_path: Path):
-    units = generate_systemd(CONFIG, tmp_path)
+def test_systemd_units_have_user_exec():
+    units = generate_systemd(CONFIG, Path(__file__).resolve().parents[1])
     content = "\n".join(units.values())
     assert "rice startup" in content
     assert "rice daemon" in content
