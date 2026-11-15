@@ -26,7 +26,7 @@ apps = ["work-browser", "claude"]
 | Key | Meaning |
 | --- | --- |
 | `startup.always` | Apps launched at every login. |
-| `startup.private` | Apps launched at login when Private is the initial activity. |
+| `startup.private` | Apps launched at every login, regardless of the activity Plasma restored. |
 | `autostart.<role>.apps` | Apps launched the first time that activity is entered. |
 
 Every id must reference a declared `[[app]]` entry. A role in `autostart` must

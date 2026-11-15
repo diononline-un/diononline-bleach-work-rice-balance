@@ -217,7 +217,6 @@ Desktop widgets are anchored to shell zones:
 
 ```toml
 [[desktop_widget]]
-id = "clock"
 plugin = "clock"
 zone = "edge-right"
 scale = 1.0
@@ -225,7 +224,6 @@ scale = 1.0
 
 | Key | Meaning |
 | --- | --- |
-| `id` | Widget identifier. |
 | `plugin` | Noctalia widget type written as the generated `type`. |
 | `zone` | Shell zone whose center becomes the widget anchor. |
 | `scale` | Scale factor passed to Noctalia. |
@@ -236,6 +234,10 @@ current generator. Generated widget keys use the `rice_` prefix so unrelated
 Noctalia widgets are not overwritten.
 
 ## [theme]
+
+`defaults/rice.toml` does not ship a `[theme]` table. The installer injects it
+when it builds the initial configuration. If you edit the canonical config by
+hand, add the table before running theme commands.
 
 ```toml
 [theme]

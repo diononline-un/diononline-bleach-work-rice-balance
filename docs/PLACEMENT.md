@@ -126,8 +126,6 @@ catalog. The logical roles below map to concrete zones per preset.
 | `terminal` | private side; work side on Work | normal |
 | `gpu-recorder` | private side; work side on Work | normal |
 | `discord` | portrait | fullscreen |
-| `slack` | portrait | fullscreen |
-| `hero-town` | work side | normal |
 
 Logical-to-concrete zone mapping:
 

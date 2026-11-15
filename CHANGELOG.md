@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Core runtime and installer
+
+- Added KWin placement rules, fullscreen reporting, and the `org.rice.Rice` D-Bus daemon.
+- Added Noctalia/runtime/systemd generators, atomic apply with backups, startup/autostart, and theme rotation.
+- Added the package installer with Arch/CachyOS preflight, initial config generation, dry-run, and uninstall paths.
+- Added English installation, configuration, placement, startup, theming, asset, architecture, and troubleshooting docs.
+- Added integration and PII coverage; Noctalia bar/plugins and the web configurator remain follow-up plans.
+
 ## 2026-11-15 — Application catalog and placements
 
 - Added the generic application catalog with work/private browser choices, Claude, terminals, media, Steam, Discord, OpenCode, and GPU recorder.
