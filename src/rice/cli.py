@@ -137,6 +137,28 @@ def run_shortcuts(args):
     return 0
 
 
+def run_appearance_command(args):
+    from .appearance import apply_rules, remove_rules, status
+
+    if args.action == "status":
+        result = status()
+        print(f"appearance: {'enabled' if result['enabled'] else 'disabled'}")
+        print(result["path"])
+        for group in result["groups"]:
+            print(group)
+        return 0
+    if args.action == "remove":
+        result = remove_rules(dry_run=args.dry_run)
+        print(f"appearance: removed {len(result.groups)} rice rule(s)")
+        return 0
+    result = apply_rules(dry_run=args.dry_run)
+    print(f"appearance: {'planned' if args.dry_run else 'applied'} {len(result.groups)} rice rule(s)")
+    print(result.path)
+    if result.backup:
+        print(f"backup: {result.backup}")
+    return 0
+
+
 def run_theme_command(args):
     from pathlib import Path
 
@@ -249,6 +271,21 @@ def main(argv=None):
     )
     theme_parser.add_argument("path", nargs="?", help="image path for `theme set`")
     theme_parser.set_defaults(func=run_theme_command)
+
+    appearance_parser = sub.add_parser(
+        "appearance", help="manage KWin window opacity rules"
+    )
+    appearance_sub = appearance_parser.add_subparsers(dest="action")
+    appearance_sub.required = True
+    for action, help_text in (
+        ("apply", "install the rice opacity profile"),
+        ("status", "show installed rice opacity rules"),
+        ("remove", "remove only the rice opacity rules"),
+    ):
+        action_parser = appearance_sub.add_parser(action, help=help_text)
+        if action != "status":
+            action_parser.add_argument("--dry-run", action="store_true")
+    appearance_parser.set_defaults(func=run_appearance_command)
 
     args = parser.parse_args(argv)
     if not getattr(args, "command", None):

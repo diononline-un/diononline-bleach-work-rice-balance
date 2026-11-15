@@ -160,3 +160,7 @@ directory you configure and never downloads or scrapes images. See
 - Only Arch-based distributions are supported.
 - The initial activity at login is whatever Plasma restores. Explicit
   initial-activity selection is planned with the configurator.
+
+- Optional KWin whole-window opacity profile for browsers, editors, and chat apps
+
+See [Appearance](docs/APPEARANCE.md) for the optional opacity profile.
