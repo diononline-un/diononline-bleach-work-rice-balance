@@ -152,7 +152,15 @@ id = "main"
 role = "main"
 connector = "DP-1"
 primary = true
+x = 0
+y = 0
+width = 5120
+height = 1440
 ```
+
+The installer fills `x`, `y`, `width`, and `height` from the detected output.
+The configurator may update the connector mapping, and the generator uses the
+stored geometry for desktop-widget placement.
 
 Supported roles are `main`, `side`, `portrait`, and `custom`. The installer
 fills `connector` from `kscreen-doctor -j` and lets the user change it. A
