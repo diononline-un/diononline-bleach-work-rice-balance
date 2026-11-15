@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-15 — Application catalog and placements
+
+- Added the generic application catalog with work/private browser choices, Claude, terminals, media, Steam, Discord, OpenCode, and GPU recorder.
+- Added stable app-id resolution for installer choices and activity memberships.
+- Added default placements for terminal and recorder to the existing layout mappings.
+- Package and window-class names remain to be verified during installer integration.
+
 ## 2026-11-15 — Core scaffold and config model
 
 - Added the `rice` Python CLI skeleton and development wrapper.
