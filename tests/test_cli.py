@@ -444,3 +444,10 @@ def test_main_reports_subprocess_errors_without_traceback(monkeypatch, capsys):
     assert len(captured.err.strip().splitlines()) == 1
     assert "Traceback" not in captured.err
     assert "Traceback" not in captured.out
+
+
+def test_cli_has_appearance_command():
+    result = run_cli("appearance", "--help")
+    assert result.returncode == 0
+    for action in ("apply", "remove", "status"):
+        assert action in result.stdout

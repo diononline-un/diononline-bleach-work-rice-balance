@@ -140,3 +140,10 @@
 - Added XDG path helpers and a generic default config with no personal paths or wallpaper binaries.
 - Added KScreen output detection, Activity Manager helpers, and triple/single-split/ultrawide zone presets.
 - Core installer, generators, startup/autostart, theme, and configurator work remain open.
+
+## 2026-11-15 — Optional KWin appearance profile
+
+- Added `rice appearance apply/status/remove` for backed-up, rice-owned KWin opacity rules.
+- Added active/inactive opacity profiles for browsers, editors, Claude, chat, file manager, and media apps.
+- Added fullscreen and Steam/gamescope opacity exceptions; terminal opacity stays native.
+- Documented whole-window transparency limits and the interaction with KWin blur.
