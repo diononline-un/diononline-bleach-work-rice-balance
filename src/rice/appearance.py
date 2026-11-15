@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from .paths import config_home, data_home, state_home
+from .paths import config_home, state_home
 
 RULE_PREFIX = "rice-appearance-"
 RULE_ORDER = "General"
@@ -33,31 +33,7 @@ RULE_APPS = (
 )
 EXCEPTION_GAMES = "games"
 EXCEPTION_MEDIA = "media"
-BROWSER_SCRIPT_NAME = "rice-browser-opacity"
-BROWSER_SCRIPT = r"""// Rice: browsers stay readable while fullscreen video stays opaque.
-const BROWSERS = ["brave-browser", "google-chrome", "chromium", "firefox"];
-const ACTIVE = 0.92;
-const INACTIVE = 0.86;
 
-function sync(win) {
-    if (!win || !win.normalWindow) return;
-    const cls = (win.resourceClass || "").toLowerCase();
-    if (BROWSERS.indexOf(cls) < 0) return;
-    win.opacity = win.fullScreen ? 1.0 : (win.active ? ACTIVE : INACTIVE);
-}
-
-function watch(win) {
-    if (!win) return;
-    sync(win);
-    win.fullScreenChanged.connect(function () { sync(win); });
-    win.activeChanged.connect(function () { sync(win); });
-}
-
-workspace.windowAdded.connect(watch);
-workspace.windowActivated.connect(function (win) { sync(win); });
-const existing = workspace.windowList();
-for (let i = 0; i < existing.length; i++) watch(existing[i]);
-"""
 
 
 @dataclass(frozen=True)
@@ -186,44 +162,6 @@ def _write(path: Path, parser: configparser.RawConfigParser) -> None:
             os.unlink(temp_name)
 
 
-def _browser_script_root() -> Path:
-    return data_home() / "kwin" / "scripts" / BROWSER_SCRIPT_NAME
-
-
-def install_browser_script(runner=None, data_dir: Path | None = None) -> Path:
-    """Install and enable the browser fullscreen-opacity guard."""
-    root = (Path(data_dir) if data_dir is not None else data_home()) / "kwin" / "scripts" / BROWSER_SCRIPT_NAME
-    code = root / "contents" / "code" / "main.js"
-    code.parent.mkdir(parents=True, exist_ok=True)
-    code.write_text(BROWSER_SCRIPT, encoding="utf-8")
-    (root / "metadata.json").write_text(
-        '{\n  "KPackageStructure": "KWin/Script",\n  "KPlugin": {\n    "Id": "rice-browser-opacity",\n    "Name": "Rice Browser Opacity",\n    "Description": "Keep fullscreen browser video opaque",\n    "Version": "1.0",\n    "License": "MIT"\n  },\n  "X-Plasma-API": "javascript"\n}\n',
-        encoding="utf-8",
-    )
-    run = runner or subprocess.run
-    run([
-        "kwriteconfig6", "--file", "kwinrc", "--group", "Plugins",
-        "--key", f"{BROWSER_SCRIPT_NAME}Enabled", "true",
-    ], check=False)
-    run([
-        "qdbus6", "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting.loadScript",
-        str(code), f"{BROWSER_SCRIPT_NAME}-live",
-    ], check=False)
-    run(["qdbus6", "org.kde.KWin", "/Scripting", "org.kde.kwin.Scripting.start"], check=False)
-    return root
-
-
-def remove_browser_script(runner=None) -> None:
-    run = runner or subprocess.run
-    root = _browser_script_root()
-    if root.exists():
-        shutil.rmtree(root)
-    run([
-        "kwriteconfig6", "--file", "kwinrc", "--group", "Plugins",
-        "--key", f"{BROWSER_SCRIPT_NAME}Enabled", "false",
-    ], check=False)
-
-
 def apply_rules(
     path: Path | None = None,
     *,
@@ -248,7 +186,6 @@ def apply_rules(
         return AppearanceResult(path, tuple(groups))
     backup = _backup(path)
     _write(path, parser)
-    install_browser_script(runner)
     (runner or subprocess.run)(
         ["qdbus6", "org.kde.KWin", "/KWin", "reconfigure"],
         check=False,
@@ -269,7 +206,6 @@ def remove_rules(
         return AppearanceResult(path, tuple(removed))
     backup = _backup(path)
     _write(path, parser)
-    remove_browser_script(runner)
     (runner or subprocess.run)(
         ["qdbus6", "org.kde.KWin", "/KWin", "reconfigure"],
         check=False,

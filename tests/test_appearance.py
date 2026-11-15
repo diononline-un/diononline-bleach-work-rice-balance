@@ -100,22 +100,3 @@ def test_no_generated_rule_forces_fullscreen():
     for _group, values in _rule_groups():
         assert "fullscreen" not in values
         assert "fullscreenrule" not in values
-
-
-def test_apply_installs_browser_fullscreen_guard(tmp_path, monkeypatch):
-    path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
-    calls = []
-    apply_rules(path, runner=lambda command, **kwargs: calls.append(command))
-    script = tmp_path / "data/kwin/scripts/rice-browser-opacity/contents/code/main.js"
-    assert script.is_file()
-    text = script.read_text(encoding="utf-8")
-    assert "fullScreen ? 1.0" in text
-    assert "win.opacity" in text
-    assert any("kwriteconfig6" in command[0] for command in calls)
-
-
-def test_remove_removes_browser_guard(tmp_path, monkeypatch):
-    path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
-    apply_rules(path, runner=lambda command, **kwargs: None)
-    remove_rules(path, runner=lambda command, **kwargs: None)
-    assert not (tmp_path / "data/kwin/scripts/rice-browser-opacity").exists()

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-15 — Keep browsers fully opaque
+
+- Removed the browser KWin opacity guard and browser opacity rules.
+- Brave, Chrome, Chromium, and Firefox are now always 100% opaque; media players, Steam, and games remain opaque as well.
+- Text editors, chat, and the remaining appearance profile are unchanged.
+
 ## 2026-11-15 — Refine appearance profile
 
 - Removed browser opacity rules and moved browsers to a KWin guard that forces 100% opacity in fullscreen video.
