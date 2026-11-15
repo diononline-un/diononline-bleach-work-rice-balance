@@ -12,6 +12,7 @@ from rice.appearance import (
 def _rules(path: Path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(path.parent / "config"))
     monkeypatch.setenv("XDG_STATE_HOME", str(path.parent / "state"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(path.parent / "data"))
     return path
 
 
@@ -36,8 +37,10 @@ def test_apply_preserves_existing_rules_and_adds_exceptions(tmp_path, monkeypatc
     order = parser.get("General", "Order").split(",")
     assert order[0] == RULE_PREFIX + "games"
     assert "existing" in order
-    assert parser.get(RULE_PREFIX + "brave", "opacityactive") == "92"
-    assert parser.get(RULE_PREFIX + "brave", "opacityinactive") == "86"
+    assert parser.get(RULE_PREFIX + "code", "opacityactive") == "92"
+    assert parser.get(RULE_PREFIX + "code", "opacityinactive") == "86"
+    assert parser.get(RULE_PREFIX + "media", "opacityactive") == "100"
+    assert not parser.has_section(RULE_PREFIX + "brave")
     assert result.groups
     assert result.backup is not None
 
@@ -48,7 +51,7 @@ def test_apply_is_idempotent_and_keeps_one_rule_per_app(tmp_path, monkeypatch):
     apply_rules(path, runner=lambda *args, **kwargs: None)
     parser = _parser(path)
     groups = [group for group in parser.sections() if group.startswith(RULE_PREFIX)]
-    assert len(groups) == 15
+    assert len(groups) == 11
     assert len(set(groups)) == len(groups)
     order = parser.get("General", "Order").split(",")
     assert len(order) == len(set(order))
@@ -86,8 +89,9 @@ def test_status_reports_rules(tmp_path, monkeypatch):
     apply_rules(path, runner=lambda *args, **kwargs: None)
     state = status(path)
     assert state["enabled"] is True
-    assert state["count"] == 15
+    assert state["count"] == 11
     assert RULE_PREFIX + "games" in state["groups"]
+    assert RULE_PREFIX + "media" in state["groups"]
 
 
 def test_no_generated_rule_forces_fullscreen():
@@ -96,3 +100,22 @@ def test_no_generated_rule_forces_fullscreen():
     for _group, values in _rule_groups():
         assert "fullscreen" not in values
         assert "fullscreenrule" not in values
+
+
+def test_apply_installs_browser_fullscreen_guard(tmp_path, monkeypatch):
+    path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
+    calls = []
+    apply_rules(path, runner=lambda command, **kwargs: calls.append(command))
+    script = tmp_path / "data/kwin/scripts/rice-browser-opacity/contents/code/main.js"
+    assert script.is_file()
+    text = script.read_text(encoding="utf-8")
+    assert "fullScreen ? 1.0" in text
+    assert "win.opacity" in text
+    assert any("kwriteconfig6" in command[0] for command in calls)
+
+
+def test_remove_removes_browser_guard(tmp_path, monkeypatch):
+    path = _rules(tmp_path / "kwinrulesrc", monkeypatch)
+    apply_rules(path, runner=lambda command, **kwargs: None)
+    remove_rules(path, runner=lambda command, **kwargs: None)
+    assert not (tmp_path / "data/kwin/scripts/rice-browser-opacity").exists()

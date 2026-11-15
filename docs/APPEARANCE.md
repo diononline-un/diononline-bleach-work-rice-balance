@@ -23,16 +23,21 @@ and reloads KWin. `remove` removes only groups prefixed with
 
 | Applications | Active opacity | Inactive opacity |
 | --- | ---: | ---: |
-| Brave, Chrome, Chromium, Firefox | 92% | 86% |
 | VS Code, OpenCode | 92% | 86% |
 | Claude, Claude Desktop, Slack, Discord | 94% | 88% |
 | Dolphin | 96% | 92% |
-| Obsidian, Thunderbird, YouTube Music | 94% | 88% |
+| Obsidian, Thunderbird | 94% | 88% |
 
-`steam`, `steam_app_*`, and `gamescope` are forced to 100%. The profile never
-forces fullscreen; windows that are not listed keep the user's current KWin
-appearance. Fullscreen apps still use the normal opacity rules, so a fullscreen
-video may remain slightly translucent.
+The browser classes (`brave-browser`, `google-chrome`, `chromium`, `firefox`)
+are handled by a small KWin script instead of a rule. Normal browser windows use
+92%/86%, while fullscreen browser windows are forced to 100% opacity so video
+stays solid. Inline video inside a normal browser window still inherits the
+window opacity; KWin cannot isolate a web page's video surface.
+
+`steam`, `steam_app_*`, and `gamescope` are forced to 100%. VLC, mpv, Celluloid,
+Haruna, SMPlayer, and YouTube Music are explicitly kept at 100%. The profile
+never forces fullscreen; windows that are not listed keep the user's current KWin
+appearance.
 
 Terminal transparency is better handled natively by Alacritty, Kitty, or
 Konsole. Combining native terminal opacity with these KWin rules would stack
@@ -46,6 +51,7 @@ the two effects.
   background alpha; the KWin rule is the practical option.
 - Transparent windows look best with a working KWin blur effect. Without blur,
   busy wallpapers can reduce readability.
-- Games are deliberately excluded. Fullscreen video can inherit the normal opacity rule.
+- Games, Steam, VLC, mpv, Celluloid, Haruna, SMPlayer, and YouTube Music are deliberately kept opaque.
+- Fullscreen browser video is kept opaque by the browser guard; inline video cannot be isolated from the page.
 - Editing the rules through System Settings may replace the generated groups;
   rerun `rice appearance apply` to restore the rice profile.
