@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-15-core-design.md`
 
+**Plan scope:** This plan implements the core backend, configuration model, installer, placement generator, runtime generators, startup/autostart, theme engine, and installer. The Noctalia bar/plugin port, custom KWin shortcuts, and the web configurator are separate plans because they are independent UI subsystems. The installer can install the core without the custom panel widgets; Plan 2 adds the visual shell and Plan 3 adds the configurator.
+
 ## Global Constraints
 
 - Arch Linux or CachyOS only; require `pacman`, KDE Plasma 6, KWin, Noctalia 5.5+, and an existing `paru` or `yay`.
@@ -893,10 +895,24 @@ function applyRule(win) {
     }
 }
 
+function updateFullscreen() {
+    const win = workspace.activeWindow;
+    if (!win || !win.output) return;
+    callDBus("org.rice.Rice", "/Rice", "org.rice.Rice", "SetFullscreen",
+             win.output.name, !!win.fullScreen);
+}
+
 workspace.windowAdded.connect(applyRule);
-workspace.windowActivated.connect(applyRule);
+workspace.windowActivated.connect(function(win) {
+    applyRule(win);
+    updateFullscreen();
+});
+workspace.windowActivated.connect(function(win) {
+    if (win) win.fullScreenChanged.connect(updateFullscreen);
+});
 const existing = workspace.windowList();
 for (let i = 0; i < existing.length; i++) applyRule(existing[i]);
+updateFullscreen();
 ```
 
 - [ ] **Step 4: Run test and syntax check**
@@ -1012,7 +1028,6 @@ def generate_systemd(config: dict, install_root: Path) -> dict[Path, str]:
     mapping = {
         "rice-daemon.service": "rice daemon",
         "rice-startup.service": "rice startup",
-        "rice-fullscreen-watch.service": "rice daemon",
         "rice-theme-boot.service": "rice theme boot",
         "rice-theme-hourly.service": "rice theme hourly",
         "rice-theme-hourly.timer": "",
@@ -1160,6 +1175,8 @@ def apply_config(config_path: Path, dry_run: bool = False, runner=None) -> Apply
         _write(path, content)
     if runner is not None:
         runner("systemctl", "--user", "daemon-reload")
+        runner("systemctl", "--user", "enable", "--now", "rice-daemon.service", "rice-startup.service")
+        runner("kwriteconfig6", "--file", "kwinrc", "--group", "Plugins", "--key", "rice-placementEnabled", "true")
         runner("qdbus6", "org.kde.KWin", "/KWin", "reconfigure")
         runner("noctalia", "msg", "config-reload")
     return ApplyResult(list(generated), [])
@@ -1337,6 +1354,7 @@ class RiceDaemon(dbus.service.Object):
     def __init__(self, bus, runtime):
         super().__init__(bus, "/Rice")
         self.runtime = runtime
+        self.fullscreen = {}
 
     @dbus.service.method("org.rice.Rice", in_signature="s", out_signature="")
     def SwitchActivity(self, role):
@@ -1347,6 +1365,14 @@ class RiceDaemon(dbus.service.Object):
     @dbus.service.method("org.rice.Rice", out_signature="")
     def RunStartup(self):
         run_startup(self.runtime)
+
+    @dbus.service.method("org.rice.Rice", in_signature="sb", out_signature="")
+    def SetFullscreen(self, output, state):
+        self.fullscreen[str(output)] = bool(state)
+
+    @dbus.service.method("org.rice.Rice", out_signature="b")
+    def FullscreenActive(self):
+        return any(self.fullscreen.values())
 
     @dbus.service.method("org.rice.Rice", out_signature="")
     def ThemeNext(self):
@@ -1398,6 +1424,29 @@ def run_startup_command(args):
     return 0
 
 
+def run_doctor(args):
+    import shutil
+    from .config import load_config, validate_config
+    from .outputs import detect_outputs
+    errors = []
+    if not shutil.which("noctalia"):
+        errors.append("noctalia is not installed")
+    if not shutil.which("qdbus6"):
+        errors.append("qdbus6 is not installed")
+    try:
+        outputs = detect_outputs()
+        if not outputs:
+            errors.append("no detected outputs")
+    except Exception as exc:
+        errors.append(f"output detection failed: {exc}")
+    try:
+        errors.extend(validate_config(load_config(config_path())))
+    except Exception as exc:
+        errors.append(f"config load failed: {exc}")
+    print("\n".join(errors) if errors else "rice doctor: OK")
+    return 1 if errors else 0
+
+
 def run_activity_command(args):
     from .activities import switch_activity
     runtime = _runtime()
@@ -1408,8 +1457,22 @@ def run_activity_command(args):
 
 
 def run_theme_command(args):
-    from .theme import next_theme, previous_theme
-    (next_theme if args.value == "next" else previous_theme)(_runtime())
+    from .theme import boot_theme, hourly_theme, next_theme, previous_theme
+    runtime = _runtime()
+    if args.value == "boot":
+        boot_theme(runtime)
+    elif args.value == "hourly":
+        hourly_theme(runtime)
+    elif args.value == "random":
+        import random
+        from .theme import list_wallpapers, _apply
+        files = list_wallpapers(Path(runtime["theme"]["wallpaper_dir"]).expanduser())
+        if files:
+            _apply(runtime, random.choice(files))
+    elif args.value == "next":
+        next_theme(runtime)
+    else:
+        previous_theme(runtime)
     return 0
 
 
@@ -1427,14 +1490,15 @@ def main(argv=None):
 
     daemon_parser = sub.add_parser("daemon")
     daemon_parser.set_defaults(func=lambda args: __import__("rice.daemon", fromlist=["main"]).main())
-    sub.add_parser("doctor").set_defaults(func=lambda args: 0)
+    doctor_parser = sub.add_parser("doctor")
+    doctor_parser.set_defaults(func=run_doctor)
 
     activity_parser = sub.add_parser("activity")
     activity_parser.add_argument("role", choices=["private", "work"])
     activity_parser.set_defaults(func=run_activity_command)
 
     theme_parser = sub.add_parser("theme")
-    theme_parser.add_argument("value", choices=["next", "previous"])
+    theme_parser.add_argument("value", choices=["next", "previous", "boot", "hourly", "random"])
     theme_parser.set_defaults(func=run_theme_command)
 
     args = parser.parse_args(argv)
@@ -1564,6 +1628,42 @@ def previous_theme(runtime: dict, runner=None) -> Path:
     target = files[index % len(files)]
     _apply(runtime, target, runner)
     return target
+
+
+def _guarded() -> bool:
+    import subprocess
+    commands = [
+        ["gdbus", "call", "--session", "--dest", "org.rice.Rice",
+         "--object-path", "/Rice", "--method", "org.rice.Rice.FullscreenActive"],
+        ["gdbus", "call", "--session", "--dest", "org.freedesktop.ScreenSaver",
+         "--object-path", "/ScreenSaver", "--method",
+         "org.freedesktop.ScreenSaver.GetActive"],
+    ]
+    for command in commands:
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if "true" in result.stdout:
+            return True
+    result = subprocess.run(
+        ["loginctl", "show-session", str(__import__("os").environ.get("XDG_SESSION_ID", "")), "-p", "IdleHint"],
+        capture_output=True, text=True, check=False,
+    )
+    return "IdleHint=yes" in result.stdout
+
+
+def hourly_theme(runtime: dict, runner=None) -> Path | None:
+    if _guarded():
+        return None
+    return next_theme(runtime, runner)
+
+
+def boot_theme(runtime: dict, runner=None) -> Path:
+    import time
+    for _ in range(60):
+        import subprocess
+        if subprocess.run(["noctalia", "msg", "status"], capture_output=True).returncode == 0:
+            break
+        time.sleep(1)
+    return next_theme(runtime, runner)
 ```
 
 Implement theme rotation by reading and writing
@@ -1715,6 +1815,7 @@ def install_tree(repo: Path, data_dir: Path, bin_dir: Path, dry_run=False):
     shutil.copytree(repo / "src/rice", install_root / "src/rice", dirs_exist_ok=True)
     shutil.copytree(repo / "templates", install_root / "templates", dirs_exist_ok=True)
     shutil.copytree(repo / "defaults", install_root / "defaults", dirs_exist_ok=True)
+    shutil.copytree(repo / "assets", install_root / "assets", dirs_exist_ok=True)
     for plugin in (repo / "plugins").iterdir():
         if plugin.is_dir():
             shutil.copytree(plugin, data_dir / "noctalia-plugins" / plugin.name, dirs_exist_ok=True)
