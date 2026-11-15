@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-15 — Configurator shell and tabs
+
+- Added `src/web/index.html`, `src/web/style.css`, and `src/web/app.js`: dark responsive shell with tabs Apps, Outputs, Layout, Placement, Startup, Autostart, Widgets, Theme, and Apply.
+- `app.js` reads the session token from `?token=`, keeps it in session storage, strips it from the address bar, and sends `Authorization: Bearer` on every API call.
+- Startup loads `/api/state`; tabs show read-only summaries plus JSON editors for widgets and theme. Layout shows a zone preview with selection, ready for canvas editing.
+- Validate, Save, and Apply call `/api/validate`, `PUT /api/config`, and `/api/apply`; buttons disable while busy and a `beforeunload` guard warns about unsaved edits.
+- Replaced the Task 1 "assets absent" check with a static-asset serving test now that the UI exists.
+- Suite is now 191 tests.
+
 ## 2026-11-15 — Local web configurator API
 
 - Added `src/rice/web.py`: a loopback `ThreadingHTTPServer` exposing `/api/health`, `/api/state`, `/api/outputs`, `/api/config`, `/api/validate`, `/api/apply`, `/api/backup`, and `/api/restore`, all gated by a `Bearer` token with `hmac.compare_digest`.

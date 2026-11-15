@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>rice configurator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div>
+        <h1>rice</h1>
+        <p class="subtitle">Local configuration editor</p>
+      </div>
+      <p id="badge" class="badge" hidden>Unsaved changes</p>
+    </header>
+
+    <nav id="tabs" class="tabs" aria-label="Configuration sections">
+      <button type="button" class="tab" data-tab="apps">Apps</button>
+      <button type="button" class="tab" data-tab="outputs">Outputs</button>
+      <button type="button" class="tab" data-tab="layout">Layout</button>
+      <button type="button" class="tab" data-tab="placement">Placement</button>
+      <button type="button" class="tab" data-tab="startup">Startup</button>
+      <button type="button" class="tab" data-tab="autostart">Autostart</button>
+      <button type="button" class="tab" data-tab="widgets">Widgets</button>
+      <button type="button" class="tab" data-tab="theme">Theme</button>
+      <button type="button" class="tab" data-tab="apply">Apply</button>
+    </nav>
+
+    <main id="panel" class="panel" tabindex="-1" aria-live="polite">
+      <p class="muted">Loading configuration...</p>
+    </main>
+
+    <footer class="actions">
+      <div class="buttons">
+        <button type="button" id="validate">Validate</button>
+        <button type="button" id="save">Save</button>
+        <button type="button" id="apply" class="primary">Apply</button>
+      </div>
+      <span id="status" class="status" role="status" aria-live="polite"></span>
+    </footer>
+  </div>
+  <noscript>
+    <p class="muted">This configurator needs JavaScript.</p>
+  </noscript>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -155,13 +155,18 @@ def test_restore_restores_backed_up_config(server, tmp_path):
     assert load_config(path)["meta"].get("profile_name") is None
 
 
-def test_static_assets_404_when_absent(server):
-    status, _ = request(server[0], "GET", "/", token=None)
-    assert status == 404
-    status, _ = request(server[0], "GET", "/app.js", token=None)
-    assert status == 404
-    status, _ = request(server[0], "GET", "/style.css", token=None)
-    assert status == 404
+def test_static_assets_are_served_without_a_token(server):
+    status, body = request(server[0], "GET", "/", token=None)
+    assert status == 200
+    assert b'id="panel"' in body
+
+    status, body = request(server[0], "GET", "/app.js", token=None)
+    assert status == 200
+    assert b"/api/state" in body
+
+    status, body = request(server[0], "GET", "/style.css", token=None)
+    assert status == 200
+    assert b"--bg" in body
 
 
 def test_static_path_traversal_is_blocked(server):
