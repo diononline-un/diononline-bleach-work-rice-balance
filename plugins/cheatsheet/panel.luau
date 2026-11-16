@@ -1,15 +1,19 @@
 local WIDTH = 830
 local COLUMN_WIDTH = 260
-local KEY_WIDTH = 174
-local DESC_WIDTH = 126
+local ROW_WIDTH = 238
+local KEY_WIDTH = 150
+local DESC_WIDTH = 80
 local COLUMNS = 3
 local CARD_BG = "surface_container_high"
+local INK = "on_surface"
+local MUTED = "on_surface_variant"
+local OUTLINE = "outline"
 
-local MOD = { fill = "#173f49", text = "#7fe3f2", border = "#2a8a9c" }
-local CTRL = { fill = "#4a3d16", text = "#ffd479", border = "#9b7a22" }
-local SHIFT = { fill = "#4d2c17", text = "#ffb86b", border = "#a5572a" }
-local ALT = { fill = "#3d214a", text = "#d7a4ff", border = "#7b3e9b" }
-local KEY = { fill = "#25292d", text = "#e8edf0", border = "#4b555d" }
+local MOD = { text = "primary" }
+local CTRL = { text = "tertiary" }
+local SHIFT = { text = "secondary" }
+local ALT = { text = "error" }
+local KEY = { text = "on_surface" }
 
 local function capStyle(token)
   if token == "Meta" or token == "Super" or token == "Mod" then
@@ -27,7 +31,7 @@ end
 local groups = {
   {
     title = "Focus & Activities",
-    accent = "#7fd1a7",
+    accent = "primary",
     rows = {
       { "Ctrl+Alt+1", "Work activity" },
       { "Ctrl+Alt+2", "Private activity" },
@@ -38,7 +42,7 @@ local groups = {
   },
   {
     title = "Windows",
-    accent = "#ff9b6b",
+    accent = "secondary",
     rows = {
       { "Meta+M", "Maximize" },
       { "Meta+N", "Minimize" },
@@ -53,7 +57,7 @@ local groups = {
   },
   {
     title = "Move & Displays",
-    accent = "#f2c14e",
+    accent = "tertiary",
     rows = {
       { "Meta+1", "Move to main" },
       { "Meta+2", "Move to side" },
@@ -64,7 +68,7 @@ local groups = {
   },
   {
     title = "Themes",
-    accent = "#c79bff",
+    accent = "tertiary",
     rows = {
       { "Ctrl+Alt+Shift+Left", "Previous theme" },
       { "Ctrl+Alt+Shift+Right", "Next theme" },
@@ -72,14 +76,14 @@ local groups = {
   },
   {
     title = "Media & Clipboard",
-    accent = "#7eb8ff",
+    accent = "secondary",
     rows = {
       { "Ctrl+Alt+V", "Clipboard history" },
     },
   },
   {
     title = "Shell",
-    accent = "#7fd1a7",
+    accent = "primary",
     rows = {
       { "Meta", "Noctalia launcher" },
       { "Ctrl+Alt+S", "Control Center" },
@@ -91,7 +95,7 @@ local groups = {
   },
   {
     title = "Recording",
-    accent = "#ff8fa3",
+    accent = "error",
     rows = {
       { "F8", "GPU recorder" },
       { "F9", "GPU recorder" },
@@ -106,18 +110,18 @@ local function keycap(token)
   local style = capStyle(token)
   local label = (token == "Meta" or token == "Super") and "Mod" or token
   return ui.row({
-    height = 24,
+    height = 23,
     align = "center",
     justify = "center",
-    fill = style.fill,
-    radius = 6,
-    paddingH = 7,
-    border = style.border,
+    fill = "surface_container",
+    radius = 5,
+    paddingH = 5,
+    border = OUTLINE,
     borderWidth = 1,
   }, {
     ui.label({
       text = label,
-      fontSize = 11,
+      fontSize = 10,
       fontWeight = "semibold",
       color = style.text,
       maxLines = 1,
@@ -130,23 +134,23 @@ local function keycaps(sequence)
   local first = true
   for part in string.gmatch(sequence, "[^+]+") do
     if not first then
-      table.insert(children, ui.label({ text = "+", fontSize = 10, color = "#7c8790" }))
+      table.insert(children, ui.label({ text = "+", fontSize = 10, color = MUTED }))
     end
     table.insert(children, keycap(part))
     first = false
   end
-  return ui.row({ gap = 3, align = "center", width = KEY_WIDTH }, children)
+  return ui.row({ gap = 2, align = "center", width = KEY_WIDTH }, children)
 end
 
 local function shortcutRow(key, description)
-  return ui.row({ gap = 8, align = "center", width = COLUMN_WIDTH }, {
+  return ui.row({ gap = 6, align = "center", width = ROW_WIDTH }, {
     keycaps(key),
     ui.label({
       text = description,
       width = DESC_WIDTH,
-      fontSize = 12,
-      color = "#e8edf0",
-      maxLines = 2,
+      fontSize = 11,
+      color = INK,
+      maxLines = 3,
     }),
   })
 end
@@ -179,12 +183,12 @@ end
 local function groupCard(group)
   local children = {
     ui.row({ gap = 7, align = "center" }, {
-      ui.label({ text = "●", fontSize = 14, color = group.accent }),
+      ui.label({ text = "●", fontSize = 12, color = group.accent }),
       ui.label({
         text = string.upper(group.title),
         fontSize = 11,
         fontWeight = "bold",
-        color = "#e8edf0",
+        color = INK,
       }),
     }),
   }
@@ -198,7 +202,7 @@ local function groupCard(group)
     fill = CARD_BG,
     padding = 10,
     radius = 10,
-    border = group.accent,
+    border = OUTLINE,
     borderWidth = 1,
   }, children)
 end
@@ -211,12 +215,12 @@ local function modifierLegend()
     { "Alt", ALT, "" },
   }
   local children = {
-    ui.label({ text = "MODIFIERS:", fontSize = 11, fontWeight = "bold", color = "#7c8790" }),
+    ui.label({ text = "MODIFIERS:", fontSize = 11, fontWeight = "bold", color = MUTED }),
   }
   for _, item in ipairs(items) do
     table.insert(children, keycap(item[1]))
     if item[3] ~= "" then
-      table.insert(children, ui.label({ text = item[3], fontSize = 11, color = "#aab4bb" }))
+      table.insert(children, ui.label({ text = item[3], fontSize = 11, color = MUTED }))
     end
   end
   return ui.row({ width = WIDTH, gap = 8, align = "center" }, children)
@@ -245,8 +249,8 @@ render = function()
   local body
   if #shown == 0 then
     body = ui.column({ width = WIDTH, gap = 6, align = "center" }, {
-      ui.glyph({ name = "search", size = 28, color = "#7c8790" }),
-      ui.label({ text = "No shortcuts found.", fontSize = 15, color = "#aab4bb" }),
+      ui.glyph({ name = "search", size = 28, color = MUTED }),
+      ui.label({ text = "No shortcuts found.", fontSize = 15, color = MUTED }),
     })
   else
     body = ui.row({ gap = 10, align = "start", width = WIDTH }, columnNodes)
@@ -271,7 +275,7 @@ render = function()
         focus = true,
         onChange = "onSearch",
       }),
-      ui.label({ text = string.format("%d shortcuts", shortcut_count), fontSize = 12, color = "#7c8790" }),
+      ui.label({ text = string.format("%d shortcuts", shortcut_count), fontSize = 12, color = MUTED }),
     }),
     modifierLegend(),
     ui.separator({ spacing = 2 }),
