@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-16 — Cream theme-aware shortcut sheet
+
+- Replaced fixed neon keycap colors with Noctalia theme roles for surface, text, outline, primary, secondary, tertiary, and error.
+- Tightened the key/description columns so rows stay inside the card borders.
+- Removed the remaining fixed colors and kept search focused on open.
+
 ## 2026-11-16 — Cheat sheet reference styling
 
 - Restyled the shortcut sheet with colored modifier keycaps, a modifier legend, grouped cards, and accent markers.

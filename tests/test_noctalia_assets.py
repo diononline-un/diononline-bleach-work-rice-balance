@@ -193,3 +193,11 @@ def test_media_plugin_user_facing_strings_are_english():
         text = path.read_text(encoding="utf-8")
         for marker in german_markers:
             assert marker not in text, f"German UI string {marker!r} in {path.name}"
+
+
+def test_cheatsheet_uses_theme_roles_not_fixed_colors():
+    panel = (CHEATSHEET_PLUGIN / "panel.luau").read_text(encoding="utf-8")
+    assert re.search(r"#[0-9A-Fa-f]{3,8}", panel) is None
+    assert 'fill = "surface_container"' in panel
+    assert 'local INK = "on_surface"' in panel
+    assert 'border = OUTLINE' in panel
