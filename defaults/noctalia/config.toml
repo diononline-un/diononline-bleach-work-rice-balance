@@ -60,7 +60,7 @@ border_width = 0.0
 shadow = false
 radius = 16
 margin_ends = 0
-margin_edge = 10
+margin_edge = 5
 padding = 12
 widget_spacing = 14
 reserve_space = true
@@ -77,7 +77,7 @@ capsule_foreground = "on_surface"
 color = "on_surface"
 scale = 0.95
 start = ["launcher", "cheatsheet", "themes", "group:quick"]
-center = []
+center = ["clock"]
 end = ["group:stats", "group:sys", "group:bg"]
 
 [[bar.main.capsule_group]]

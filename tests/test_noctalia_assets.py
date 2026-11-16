@@ -122,10 +122,15 @@ def test_cheatsheet_panel_lists_generated_shortcuts_only():
         "Ctrl+Alt+Shift+Right",
         "Ctrl+Alt+R",
         "Ctrl+Alt+H",
+        "Meta+T",
+        "Ctrl+Alt+V",
     ):
         assert key in panel, f"missing generated shortcut {key!r} in panel.luau"
-    for stale in ("Acer", "Ctrl+Alt+7", "Ctrl+Alt+Shift+T", "Alacritty", "Kitty"):
+    for stale in ("Acer", "Ctrl+Alt+7", "Ctrl+Alt+Shift+T", "Alacritty", "Kitty", "Rice · Shortcuts"):
         assert stale not in panel, f"stale label {stale!r} in panel.luau"
+    assert "ui.input" in panel
+    assert "onSearch" in panel
+    assert "focus = true" in panel
 
 
 def test_cheatsheet_panel_width_matches_manifest():

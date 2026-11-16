@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-16 — Shortcut sheet and display spacing
+
+- Reworked the cheat sheet: no heading, focused search field, live filtering by shortcut or function, grouped cards, and split keycaps.
+- Added the KWin tile editor shortcut (`Meta+T`) and clipboard history (`Ctrl+Alt+V`) to the sheet.
+- Reduced the main bar margin to 5 px and added a 5 px top gap for DP-1 window tiles.
+- Reserved the bottom stats bar area on DP-2 so windows cannot be clicked through or hidden under it.
+
 ## 2026-11-15 — Solid application windows
 
 - `rice appearance apply` now removes legacy rice opacity rules and adds none.
