@@ -1,83 +1,87 @@
 local WIDTH = 830
 local COLUMN_WIDTH = 260
-local KEY_WIDTH = 142
-local DESC_WIDTH = 138
+local KEY_WIDTH = 174
+local DESC_WIDTH = 126
 local COLUMNS = 3
-
-local function channel(value)
-  local v = tonumber(value, 16) / 255
-  if v <= 0.03928 then
-    return v / 12.92
-  end
-  return ((v + 0.055) / 1.055) ^ 2.4
-end
-
-local function luminance(hex)
-  if type(hex) ~= "string" then
-    return 0.5
-  end
-  local r, g, b = string.match(hex, "^#(%x%x)(%x%x)(%x%x)")
-  if r == nil then
-    return 0.5
-  end
-  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
-end
-
-local function inkFor(role)
-  local value = noctalia.getColor(role)
-  if type(value) ~= "string" then
-    return noctalia.isDarkMode() and "#f7f7f7" or "#111111"
-  end
-  if luminance(value) > 0.5 then
-    return "#111111"
-  end
-  return "#f7f7f7"
-end
-
-local function mutedFor(role)
-  local value = noctalia.getColor(role)
-  if type(value) ~= "string" then
-    return noctalia.isDarkMode() and "#c8c8c8" or "#333333"
-  end
-  if luminance(value) > 0.5 then
-    return "#333333"
-  end
-  return "#c8c8c8"
-end
-
-local INK = inkFor("surface_container")
-local MUTED = mutedFor("surface_container")
-local KEY_INK = inkFor("surface_container_high")
-local KEY_BG = "surface_container_high"
 local CARD_BG = "surface_container_high"
+
+local MOD = { fill = "#173f49", text = "#7fe3f2", border = "#2a8a9c" }
+local CTRL = { fill = "#4a3d16", text = "#ffd479", border = "#9b7a22" }
+local SHIFT = { fill = "#4d2c17", text = "#ffb86b", border = "#a5572a" }
+local ALT = { fill = "#3d214a", text = "#d7a4ff", border = "#7b3e9b" }
+local KEY = { fill = "#25292d", text = "#e8edf0", border = "#4b555d" }
+
+local function capStyle(token)
+  if token == "Meta" or token == "Super" or token == "Mod" then
+    return MOD
+  elseif token == "Ctrl" then
+    return CTRL
+  elseif token == "Shift" then
+    return SHIFT
+  elseif token == "Alt" then
+    return ALT
+  end
+  return KEY
+end
 
 local groups = {
   {
-    title = "Activities",
+    title = "Focus & Activities",
+    accent = "#7fd1a7",
     rows = {
-      { "Ctrl+Alt+1", "Work" },
-      { "Ctrl+Alt+2", "Private" },
-    },
-  },
-  {
-    title = "Quickstart",
-    rows = {
-      { "Ctrl+Alt+Shift+1", "Work + apps" },
-      { "Ctrl+Alt+Shift+2", "Private + apps" },
-      { "Ctrl+Alt+Shift+Space", "Current area" },
+      { "Ctrl+Alt+1", "Work activity" },
+      { "Ctrl+Alt+2", "Private activity" },
+      { "Ctrl+Alt+Shift+1", "Quickstart work" },
+      { "Ctrl+Alt+Shift+2", "Quickstart private" },
+      { "Ctrl+Alt+Shift+Space", "Quickstart current" },
     },
   },
   {
     title = "Windows",
+    accent = "#ff9b6b",
     rows = {
+      { "Meta+M", "Maximize" },
+      { "Meta+N", "Minimize" },
+      { "Meta+Q", "Close" },
+      { "Meta+H", "Tile left" },
+      { "Meta+J", "Tile right" },
+      { "Meta+Left", "Previous window" },
+      { "Meta+Right", "Next window" },
       { "Meta+T", "Tile editor" },
-      { "Ctrl+Alt+R", "Apply window layout" },
+      { "Ctrl+Alt+R", "Apply layout" },
+    },
+  },
+  {
+    title = "Move & Displays",
+    accent = "#f2c14e",
+    rows = {
+      { "Meta+1", "Move to main" },
+      { "Meta+2", "Move to side" },
+      { "Meta+3", "Move to portrait" },
+      { "Meta+Return", "Terminal" },
+      { "Meta+Shift+Return", "Alternate terminal" },
+    },
+  },
+  {
+    title = "Themes",
+    accent = "#c79bff",
+    rows = {
+      { "Ctrl+Alt+Shift+Left", "Previous theme" },
+      { "Ctrl+Alt+Shift+Right", "Next theme" },
+    },
+  },
+  {
+    title = "Media & Clipboard",
+    accent = "#7eb8ff",
+    rows = {
+      { "Ctrl+Alt+V", "Clipboard history" },
     },
   },
   {
     title = "Shell",
+    accent = "#7fd1a7",
     rows = {
-      { "Super", "Noctalia launcher" },
+      { "Meta", "Noctalia launcher" },
       { "Ctrl+Alt+S", "Control Center" },
       { "Ctrl+Alt+P", "Noctalia Settings" },
       { "Ctrl+Alt+H", "Shortcut sheet" },
@@ -86,61 +90,36 @@ local groups = {
     },
   },
   {
-    title = "Themes",
-    rows = {
-      { "Ctrl+Alt+Shift+Left", "Previous theme" },
-      { "Ctrl+Alt+Shift+Right", "Next theme" },
-    },
-  },
-  {
-    title = "Media",
-    rows = {
-      { "Ctrl+Alt+V", "Clipboard history" },
-    },
-  },
-  {
     title = "Recording",
+    accent = "#ff8fa3",
     rows = {
-      { "F8 / F9", "GPU recorder" },
-    },
-  },
-  {
-    title = "Active window",
-    rows = {
-      { "Meta+M", "Maximize" },
-      { "Meta+N", "Minimize" },
-      { "Meta+Q", "Close" },
-      { "Meta+H", "Left half" },
-      { "Meta+J", "Right half" },
-      { "Meta+Return", "Terminal" },
-      { "Meta+Shift+Return", "Alternate terminal" },
-      { "Meta+1", "Move to display 1" },
-      { "Meta+2", "Move to display 2" },
-      { "Meta+3", "Move to display 3" },
-      { "Meta+Left", "Previous window" },
-      { "Meta+Right", "Next window" },
+      { "F8", "GPU recorder" },
+      { "F9", "GPU recorder" },
     },
   },
 }
 
 local query = ""
+local render
 
-local function keycap(text)
+local function keycap(token)
+  local style = capStyle(token)
+  local label = (token == "Meta" or token == "Super") and "Mod" or token
   return ui.row({
     height = 24,
     align = "center",
     justify = "center",
-    fill = KEY_BG,
+    fill = style.fill,
     radius = 6,
     paddingH = 7,
-    border = "outline",
+    border = style.border,
     borderWidth = 1,
   }, {
     ui.label({
-      text = text,
+      text = label,
       fontSize = 11,
       fontWeight = "semibold",
-      color = KEY_INK,
+      color = style.text,
       maxLines = 1,
     }),
   })
@@ -151,7 +130,7 @@ local function keycaps(sequence)
   local first = true
   for part in string.gmatch(sequence, "[^+]+") do
     if not first then
-      table.insert(children, ui.label({ text = "+", fontSize = 11, color = MUTED }))
+      table.insert(children, ui.label({ text = "+", fontSize = 10, color = "#7c8790" }))
     end
     table.insert(children, keycap(part))
     first = false
@@ -166,7 +145,7 @@ local function shortcutRow(key, description)
       text = description,
       width = DESC_WIDTH,
       fontSize = 12,
-      color = INK,
+      color = "#e8edf0",
       maxLines = 2,
     }),
   })
@@ -191,7 +170,7 @@ local function visibleGroups()
       end
     end
     if #rows > 0 then
-      table.insert(result, { title = group.title, rows = rows })
+      table.insert(result, { title = group.title, accent = group.accent, rows = rows })
     end
   end
   return result
@@ -199,32 +178,51 @@ end
 
 local function groupCard(group)
   local children = {
-    ui.label({
-      text = group.title,
-      fontSize = 12,
-      fontWeight = "bold",
-      color = MUTED,
+    ui.row({ gap = 7, align = "center" }, {
+      ui.label({ text = "●", fontSize = 14, color = group.accent }),
+      ui.label({
+        text = string.upper(group.title),
+        fontSize = 11,
+        fontWeight = "bold",
+        color = "#e8edf0",
+      }),
     }),
   }
   for _, row in ipairs(group.rows) do
     table.insert(children, shortcutRow(row[1], row[2]))
   end
   return ui.column({
-    gap = 6,
+    gap = 7,
     width = COLUMN_WIDTH,
     align = "stretch",
     fill = CARD_BG,
     padding = 10,
-    radius = 12,
+    radius = 10,
+    border = group.accent,
+    borderWidth = 1,
   }, children)
 end
 
-function onSearch(value)
-  query = value or ""
-  render()
+local function modifierLegend()
+  local items = {
+    { "Mod", MOD, "= Super" },
+    { "Ctrl", CTRL, "" },
+    { "Shift", SHIFT, "" },
+    { "Alt", ALT, "" },
+  }
+  local children = {
+    ui.label({ text = "MODIFIERS:", fontSize = 11, fontWeight = "bold", color = "#7c8790" }),
+  }
+  for _, item in ipairs(items) do
+    table.insert(children, keycap(item[1]))
+    if item[3] ~= "" then
+      table.insert(children, ui.label({ text = item[3], fontSize = 11, color = "#aab4bb" }))
+    end
+  end
+  return ui.row({ width = WIDTH, gap = 8, align = "center" }, children)
 end
 
-local function render()
+render = function()
   local shown = visibleGroups()
   local shortcut_count = 0
   for _, group in ipairs(shown) do
@@ -241,18 +239,14 @@ local function render()
     for _, group in ipairs(columns[index]) do
       table.insert(nodes, groupCard(group))
     end
-    table.insert(columnNodes, ui.column({
-      gap = 10,
-      width = COLUMN_WIDTH,
-      align = "stretch",
-    }, nodes))
+    table.insert(columnNodes, ui.column({ gap = 10, width = COLUMN_WIDTH, align = "stretch" }, nodes))
   end
 
   local body
   if #shown == 0 then
     body = ui.column({ width = WIDTH, gap = 6, align = "center" }, {
-      ui.glyph({ name = "search", size = 28, color = MUTED }),
-      ui.label({ text = "No shortcuts found.", fontSize = 15, color = MUTED }),
+      ui.glyph({ name = "search", size = 28, color = "#7c8790" }),
+      ui.label({ text = "No shortcuts found.", fontSize = 15, color = "#aab4bb" }),
     })
   else
     body = ui.row({ gap = 10, align = "start", width = WIDTH }, columnNodes)
@@ -277,15 +271,17 @@ local function render()
         focus = true,
         onChange = "onSearch",
       }),
-      ui.label({
-        text = string.format("%d shortcuts", shortcut_count),
-        fontSize = 12,
-        color = MUTED,
-      }),
+      ui.label({ text = string.format("%d shortcuts", shortcut_count), fontSize = 12, color = "#7c8790" }),
     }),
+    modifierLegend(),
     ui.separator({ spacing = 2 }),
     body,
   }))
+end
+
+function onSearch(value)
+  query = value or ""
+  render()
 end
 
 function onOpen(_context)

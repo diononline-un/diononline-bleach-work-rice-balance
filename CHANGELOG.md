@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-16 — Cheat sheet reference styling
+
+- Restyled the shortcut sheet with colored modifier keycaps, a modifier legend, grouped cards, and accent markers.
+- Kept the focused search field and live filtering by shortcut or function.
+- Removed the duplicate clipboard section and kept the tile editor shortcut visible.
+
 ## 2026-11-16 — Shortcut sheet and display spacing
 
 - Reworked the cheat sheet: no heading, focused search field, live filtering by shortcut or function, grouped cards, and split keycaps.
